@@ -12,6 +12,7 @@ import StudentRemarks from '../pages/student/StudentRemarks'
 import StudentProgress from '../pages/student/StudentProgress'
 import MentorDashboard from '../pages/mentor/MentorDashboard'
 import StudentDetails from '../pages/mentor/StudentDetails'
+import StudentDetailPage from '../pages/mentor/StudentDetailPage'
 import MentorRemarks from '../pages/mentor/MentorRemarks'
 import AssignedTasks from '../pages/mentor/AssignedTasks'
 import MentorJournals from '../pages/mentor/MentorJournals'
@@ -83,6 +84,10 @@ export const router = createBrowserRouter([
           {
             path: 'students',
             element: <StudentDetails />,
+          },
+          {
+            path: 'students/:studentId',
+            element: <StudentDetailPage />,
           },
           {
             path: 'remarks',

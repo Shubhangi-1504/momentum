@@ -30,7 +30,7 @@ export default function ProtectedRoute({ children, role }) {
           <div className="flex gap-3 justify-center">
             <button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-[#43A047] transition"
             >
               Retry
             </button>

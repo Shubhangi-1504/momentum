@@ -1,112 +1,187 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { dbService } from '../../services/dbService'
-import { BookOpen, Target, PenTool, MessageSquare, BarChart3 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import HomeHeader from '../../components/home/HomeHeader'
+import WelcomeCard from '../../components/home/WelcomeCard'
+import StatsCards from '../../components/home/StatsCards'
+import TodaysFocus from '../../components/home/TodaysFocus'
+import QuickActions from '../../components/home/QuickActions'
+import MotivationCard from '../../components/home/MotivationCard'
+import { getGreeting, dateKey, startOfWeek } from '../../components/home/homeUtils'
 
-const quickLinks = [
-  { name: 'Study Tracker', href: '/student/study', icon: BookOpen, color: 'bg-blue-500' },
-  { name: 'Habit Tracker', href: '/student/habits', icon: Target, color: 'bg-green-500' },
-  { name: 'Journal', href: '/student/journal', icon: PenTool, color: 'bg-purple-500' },
-  { name: 'Remarks', href: '/student/remarks', icon: MessageSquare, color: 'bg-orange-500' },
-  { name: 'Progress', href: '/student/progress', icon: BarChart3, color: 'bg-pink-500' },
-]
+// ============================================
+// StudentHome — the dashboard. All metrics come from live Supabase
+// data via the existing dbService (no new tables, no fake numbers):
+//   Study Sessions   → assignments due today
+//   Habits Completed → habit_logs completed today / total habits
+//   Journal Entries  → entries created this week
+//   Overall Progress → completed assignments + today's habit completion
+// ============================================
 
 export default function StudentHome() {
   const { profile } = useAuth()
-  const [stats, setStats] = useState(null)
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [assignments, setAssignments] = useState([])
+  const [habits, setHabits] = useState([])
+  const [logsToday, setLogsToday] = useState([])
+  const [journals, setJournals] = useState([])
+  const [toast, setToast] = useState(null)
+  const toastTimer = useRef(null)
+
+  const showToast = useCallback((message) => {
+    setToast(message)
+    if (toastTimer.current) window.clearTimeout(toastTimer.current)
+    toastTimer.current = window.setTimeout(() => setToast(null), 2500)
+  }, [])
 
   useEffect(() => {
-    async function fetchStats() {
+    if (!profile?.id) return undefined
+    let cancelled = false
+
+    // Deferred to the next tick so the effect body stays free of
+    // synchronous state updates (StrictMode-safe, mirrors StudyTracker).
+    const timer = setTimeout(async () => {
+      setLoading(true)
+      setError(null)
       try {
-        const { data: student } = await dbService.getStudentByProfileId(profile.id)
-        if (!student) return
+        const { data: student, error: studentErr } = await dbService.getStudentByProfileId(profile.id)
+        if (studentErr) throw studentErr
+        if (!student) throw new Error('Student record not found.')
 
-        const dashboardStats = await dbService.getStudentDashboardStats(student.id)
-        setStats(dashboardStats)
+        const today = dateKey()
+        const [aRes, hRes, lRes, jRes] = await Promise.all([
+          dbService.getAssignments(student.id),
+          dbService.getHabits(student.id),
+          dbService.getStudentHabitLogs(student.id, { startDate: today, endDate: today }),
+          dbService.getJournalEntries(student.id),
+        ])
+        if (aRes.error) throw aRes.error
+        if (hRes.error) throw hRes.error
+        if (lRes.error) throw lRes.error
+        if (jRes.error) throw jRes.error
+
+        if (!cancelled) {
+          setAssignments(aRes.data || [])
+          setHabits(hRes.data || [])
+          setLogsToday(lRes.data || [])
+          setJournals(jRes.data || [])
+        }
       } catch (err) {
-        console.error('Failed to load dashboard stats:', err)
-        setError('Could not load your stats.')
+        console.error('Failed to load dashboard data:', err)
+        if (!cancelled) setError(err.message || 'Could not load your dashboard.')
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
-    }
+    }, 0)
 
-    if (profile?.id) fetchStats()
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [profile?.id])
 
+  // Live metrics derived from the fetched data — recomputed automatically
+  // when a task status is cycled below.
+  const stats = useMemo(() => {
+    const today = dateKey()
+    const weekStart = startOfWeek()
+
+    const dueToday = assignments.filter(
+      (a) => a.due_date && dateKey(new Date(a.due_date)) === today
+    ).length
+
+    const completedToday = logsToday.filter((l) => l.completed).length
+    const totalHabits = habits.length
+
+    const journalThisWeek = journals.filter(
+      (j) => new Date(j.created_at) >= weekStart
+    ).length
+
+    const doneAssignments = assignments.filter((a) => a.status === 'completed').length
+    const aPart = assignments.length ? doneAssignments / assignments.length : null
+    const hPart = totalHabits ? completedToday / totalHabits : null
+    let overall = 0
+    if (aPart !== null && hPart !== null) overall = (aPart + hPart) / 2
+    else if (aPart !== null) overall = aPart
+    else if (hPart !== null) overall = hPart
+
+    return {
+      studySessions: dueToday,
+      habitsCompleted: totalHabits ? `${completedToday}/${totalHabits}` : '0',
+      journalThisWeek,
+      overallProgress: Math.round(overall * 100),
+    }
+  }, [assignments, habits, logsToday, journals])
+
+  // Today's Focus: assignments due today, unfinished first, then by time.
+  const focusTasks = useMemo(() => {
+    const today = dateKey()
+    return assignments
+      .filter((a) => a.due_date && dateKey(new Date(a.due_date)) === today)
+      .sort((a, b) => {
+        const aDone = a.status === 'completed'
+        const bDone = b.status === 'completed'
+        if (aDone !== bDone) return aDone ? 1 : -1
+        return new Date(a.due_date) - new Date(b.due_date)
+      })
+  }, [assignments])
+
+  // Cycle status like Study Tracker: pending → in_progress → completed.
+  async function handleCycleStatus(task) {
+    const next =
+      task.status === 'pending'
+        ? 'in_progress'
+        : task.status === 'in_progress'
+          ? 'completed'
+          : 'pending'
+
+    setAssignments((prev) => prev.map((a) => (a.id === task.id ? { ...a, status: next } : a)))
+    const { error: updErr } = await dbService.updateAssignment(task.id, { status: next })
+    if (updErr) {
+      console.error('Failed to update status:', updErr)
+      setAssignments((prev) => prev.map((a) => (a.id === task.id ? { ...a, status: task.status } : a)))
+      showToast('Could not update the task status.')
+    } else {
+      showToast(next === 'completed' ? 'Task completed 🎉' : `Marked ${next.replace('_', ' ')}`)
+    }
+  }
+
+  const greeting = getGreeting()
+  const firstName = (profile?.full_name || 'Student').trim().split(/\s+/)[0]
+
   return (
-    <div className="max-w-6xl mx-auto">
-      {/* Welcome Section */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Welcome back, {profile?.full_name?.split(' ')[0] || 'Student'}! 👋
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Track your studies, build habits, and monitor your progress.
-        </p>
+    <div className="max-w-6xl mx-auto space-y-6">
+      <HomeHeader />
+
+      <WelcomeCard greeting={greeting} firstName={firstName} />
+
+      <StatsCards stats={stats} loading={loading} error={error} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="lg:col-span-2 min-w-0">
+          <TodaysFocus
+            tasks={focusTasks}
+            loading={loading}
+            error={error}
+            onCycleStatus={handleCycleStatus}
+          />
+        </div>
+        <div className="space-y-6 min-w-0">
+          <QuickActions />
+          <MotivationCard />
+        </div>
       </div>
 
-      {/* Quick Links Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {quickLinks.map((link) => (
-          <Link
-            key={link.name}
-            to={link.href}
-            className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow group"
-          >
-            <div className={`w-12 h-12 ${link.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-              <link.icon className="w-6 h-6 text-white" />
-            </div>
-            <h3 className="font-semibold text-gray-900">{link.name}</h3>
-            <p className="text-sm text-gray-500 mt-1">Click to open</p>
-          </Link>
-        ))}
-      </div>
-
-      {/* Stats Summary */}
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Assignments Due"
-          value={stats?.pendingAssignments ?? '—'}
-          loading={loading}
-          error={error}
-        />
-        <StatCard
-          label="Habits Today"
-          value={stats?.habitsToday ?? '—'}
-          loading={loading}
-          error={error}
-        />
-        <StatCard
-          label="Journal Entries"
-          value={stats?.journalCount ?? '—'}
-          loading={loading}
-          error={error}
-        />
-        <StatCard
-          label="Study Hours (7d)"
-          value={stats?.studyHours ?? '—'}
-          loading={loading}
-          error={error}
-        />
-      </div>
-    </div>
-  )
-}
-
-function StatCard({ label, value, loading, error }) {
-  return (
-    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-      <p className="text-sm text-gray-500">{label}</p>
-      {loading ? (
-        <div className="mt-2 h-9 w-16 bg-gray-100 rounded animate-pulse" />
-      ) : error ? (
-        <p className="text-2xl font-bold text-red-400 mt-1">—</p>
-      ) : (
-        <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
+      {/* transient status toast (same pattern as Study Tracker) */}
+      {toast && (
+        <div
+          role="status"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg"
+        >
+          {toast}
+        </div>
       )}
     </div>
   )

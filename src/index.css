@@ -1,1 +1,41 @@
 @import "tailwindcss";
+
+/* ============================================
+   Momentum — Global Design Tokens
+   Soft mint/green identity matching the login page.
+   Tailwind v4: arbitrary values like bg-primary
+   resolve these theme variables automatically.
+   ============================================ */
+@theme {
+  /* Brand greens */
+  --color-primary: #4caf50;
+  --color-primary-dark: #2e7d32;
+  --color-primary-soft: #e8f5e9;
+  --color-primary-softer: #f3fbf5;
+
+  /* Surfaces */
+  --color-background: #f7faf8;
+  --color-surface: #ffffff;
+
+  /* Text */
+  --color-ink: #172033;
+  --color-ink-secondary: #647084;
+  --color-ink-muted: #94a0b2;
+
+  /* Lines */
+  --color-line: #e4eae6;
+  --color-input: #dde5e0;
+  --color-placeholder: #9aa5b1;
+
+  /* Feedback (muted, pastel-leaning) */
+  --color-success: #4caf50;
+  --color-warning: #f4b942;
+  --color-danger: #e57373;
+  --color-info: #5b9bd5;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+  }
+}

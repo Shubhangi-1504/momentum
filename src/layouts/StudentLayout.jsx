@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   Home,
@@ -23,7 +23,7 @@ const navigation = [
   { name: 'Progress', href: '/student/progress', icon: BarChart3 },
 ]
 
-export default function StudentLayout({ children }) {
+export default function StudentLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
@@ -35,7 +35,7 @@ export default function StudentLayout({ children }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -51,10 +51,9 @@ export default function StudentLayout({ children }) {
         }`}
       >
         <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
+          {/* Logo */}            <div className="flex items-center justify-between h-16 px-4 border-b border-line">
             <Link to="/student" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-md shadow-[#4CAF50]/25">
                 <BookOpen className="w-5 h-5 text-white" />
               </div>
               <span className="font-bold text-gray-900">StudyTracker</span>
@@ -78,11 +77,11 @@ export default function StudentLayout({ children }) {
                   onClick={() => setSidebarOpen(false)}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                     isActive
-                      ? 'bg-indigo-50 text-indigo-700'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      ? 'bg-primary-soft text-primary-dark'
+                      : 'text-[#4B5567] hover:bg-[#F1F8F3] hover:text-ink'
                   }`}
                 >
-                  <item.icon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-gray-400'}`} />
+                  <item.icon className={`w-5 h-5 ${isActive ? 'text-primary' : 'text-[#7C8798]'}`} />
                   <span className="font-medium">{item.name}</span>
                 </Link>
               )
@@ -90,10 +89,10 @@ export default function StudentLayout({ children }) {
           </nav>
 
           {/* User section */}
-          <div className="p-4 border-t border-gray-200">
+          <div className="p-4 border-t border-line">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                <User className="w-5 h-5 text-indigo-600" />
+              <div className="w-10 h-10 bg-primary-soft rounded-full flex items-center justify-center">
+                <User className="w-5 h-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
@@ -116,7 +115,7 @@ export default function StudentLayout({ children }) {
       {/* Main content */}
       <div className="lg:pl-64">
         {/* Mobile header */}
-        <header className="sticky top-0 z-10 bg-white border-b border-gray-200 lg:hidden">
+        <header className="sticky top-0 z-10 bg-white border-b border-line lg:hidden">
           <div className="flex items-center justify-between h-16 px-4">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -129,8 +128,10 @@ export default function StudentLayout({ children }) {
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="p-6">{children}</main>
+        {/* Page content — nested routes render here via Outlet */}
+        <main className="p-6">
+          <Outlet />
+        </main>
       </div>
     </div>
   )

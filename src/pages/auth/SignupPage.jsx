@@ -51,10 +51,10 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#F0FAF0] via-[#F5FBF5] to-[#E8F5E9] px-4 py-8">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-full mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-full mb-4 shadow-lg shadow-[#4CAF50]/25">
             <UserPlus className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Create Account</h1>
@@ -80,7 +80,7 @@ export default function SignupPage() {
                 onClick={() => setRole('student')}
                 className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 ${
                   role === 'student'
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                    ? 'border-primary bg-primary-soft text-primary-dark'
                     : 'border-gray-200 hover:border-gray-300 text-gray-600'
                 }`}
               >
@@ -92,7 +92,7 @@ export default function SignupPage() {
                 onClick={() => setRole('mentor')}
                 className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 ${
                   role === 'mentor'
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                    ? 'border-primary bg-primary-soft text-primary-dark'
                     : 'border-gray-200 hover:border-gray-300 text-gray-600'
                 }`}
               >
@@ -113,7 +113,7 @@ export default function SignupPage() {
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4CAF50]/20 focus:border-primary outline-none transition"
                   placeholder="John Doe"
                   required
                 />
@@ -129,7 +129,7 @@ export default function SignupPage() {
                   type="text"
                   value={usn}
                   onChange={(e) => setUsn(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4CAF50]/20 focus:border-primary outline-none transition"
                   placeholder="1XX21XX000"
                   required
                 />
@@ -145,7 +145,7 @@ export default function SignupPage() {
                   type="text"
                   value={credentials}
                   onChange={(e) => setCredentials(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4CAF50]/20 focus:border-primary outline-none transition"
                   placeholder="PhD in Computer Science"
                 />
               </div>
@@ -161,7 +161,7 @@ export default function SignupPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4CAF50]/20 focus:border-primary outline-none transition"
                   placeholder="you@example.com"
                   required
                 />
@@ -178,7 +178,7 @@ export default function SignupPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4CAF50]/20 focus:border-primary outline-none transition"
                   placeholder="••••••••"
                   required
                 />
@@ -195,7 +195,7 @@ export default function SignupPage() {
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4CAF50]/20 focus:border-primary outline-none transition"
                   placeholder="••••••••"
                   required
                 />
@@ -205,7 +205,7 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium rounded-lg transition duration-200 flex items-center justify-center gap-2"
+              className="w-full py-3 px-4 bg-primary hover:bg-[#43A047] disabled:bg-[#81C784] text-white font-medium rounded-lg transition duration-200 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>Creating account...</>
@@ -221,7 +221,7 @@ export default function SignupPage() {
           <div className="mt-6 text-center">
             <p className="text-gray-600">
               Already have an account?{' '}
-              <Link to="/login" className="text-indigo-600 hover:text-indigo-700 font-medium">
+              <Link to="/login" className="text-primary hover:text-[#43A047] font-medium">
                 Sign In
               </Link>
             </p>

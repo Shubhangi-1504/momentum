@@ -1,4 +1,10 @@
 import { supabase } from '../lib/supabase'
+import {
+  isOverdueAssignment,
+  studentNeedsReview,
+  assignmentStats,
+  relativeTime,
+} from '../utils/mentorUtils'
 
 export const dbService = {
   // ============================================
@@ -101,6 +107,27 @@ export const dbService = {
       .upsert(log, { onConflict: 'habit_id,log_date' })
       .select()
       .single()
+    return { data, error }
+  },
+
+  async deleteHabitLog(id) {
+    const { error } = await supabase
+      .from('habit_logs')
+      .delete()
+      .eq('id', id)
+    return { error }
+  },
+
+  // All habit logs for a student in one query (used by Home dashboard).
+  // Joins habits so the caller can filter by student ownership in the UI.
+  async getStudentHabitLogs(studentId, { startDate, endDate } = {}) {
+    let query = supabase
+      .from('habit_logs')
+      .select('id, habit_id, log_date, count, completed, habits!inner(student_id)')
+      .eq('habits.student_id', studentId)
+    if (startDate) query = query.gte('log_date', startDate)
+    if (endDate) query = query.lte('log_date', endDate)
+    const { data, error } = await query
     return { data, error }
   },
 
@@ -266,10 +293,11 @@ export const dbService = {
     return { data, error }
   },
 
+  // connection_code is used on the My Students page ("Your mentor code").
   async getMentorByProfileId(profileId) {
     const { data, error } = await supabase
       .from('mentors')
-      .select('id')
+      .select('id, connection_code')
       .eq('profile_id', profileId)
       .single()
     return { data, error }
@@ -326,53 +354,355 @@ export const dbService = {
     }
   },
 
+  // ============================================
+  // MENTOR DASHBOARD STATS (real data)
+  // Pending/overdue come from the SAME assignments the student's
+  // Study Tracker uses; needing-review uses the shared status rule.
+  // ============================================
   async getMentorDashboardStats(mentorId) {
-    const [relationshipsRes, tasksRes, remarksRes] = await Promise.all([
+    const { data: rels, error: relErr } = await supabase
+      .from('mentor_student_relationships')
+      .select('student_id')
+      .eq('mentor_id', mentorId)
+      .eq('status', 'active')
+    if (relErr) return { error: relErr }
+
+    const studentIds = (rels || []).map((r) => r.student_id)
+    if (studentIds.length === 0) {
+      return {
+        assignedStudents: 0,
+        pendingTasks: 0,
+        overdueTasks: 0,
+        remarksGiven: 0,
+        needingReview: 0,
+        error: null,
+      }
+    }
+
+    const [asgRes, remRes, revRes] = await Promise.all([
       supabase
-        .from('mentor_student_relationships')
+        .from('assignments')
+        .select('id, student_id, status, due_date')
+        .in('student_id', studentIds),
+      supabase
+        .from('mentor_remarks')
         .select('id')
         .eq('mentor_id', mentorId),
       supabase
-        .from('assigned_tasks')
-        .select('id, status')
-        .eq('mentor_id', mentorId),
-      supabase
-        .from('mentor_remarks')
-        .select('id, rating')
+        .from('student_reviews')
+        .select('student_id, reviewed_at')
         .eq('mentor_id', mentorId),
     ])
+    const firstErr = asgRes.error || remRes.error || revRes.error
+    if (firstErr) return { error: firstErr }
 
-    const relationships = relationshipsRes.data || []
-    const tasks = tasksRes.data || []
-    const remarks = remarksRes.data || []
+    const assignments = asgRes.data || []
+    const pendingRows = assignments.filter(
+      (a) => a.status !== 'completed' && a.status !== 'overdue'
+    )
+    const overdueRows = assignments.filter((a) => isOverdueAssignment(a))
 
-    const pendingTasks = tasks.filter(
-      (t) => t.status === 'assigned' || t.status === 'in_progress'
+    // Latest review per student
+    const lastReview = {}
+    for (const r of revRes.data || []) {
+      if (!lastReview[r.student_id] || r.reviewed_at > lastReview[r.student_id]) {
+        lastReview[r.student_id] = r.reviewed_at
+      }
+    }
+    const pendingByStudent = {}
+    for (const a of pendingRows) {
+      pendingByStudent[a.student_id] = (pendingByStudent[a.student_id] || 0) + 1
+    }
+    const overdueByStudent = {}
+    for (const a of overdueRows) {
+      overdueByStudent[a.student_id] = (overdueByStudent[a.student_id] || 0) + 1
+    }
+
+    const needingReview = studentIds.filter((sid) =>
+      studentNeedsReview({
+        overdue: overdueByStudent[sid] || 0,
+        pending: pendingByStudent[sid] || 0,
+        lastReviewedAt: lastReview[sid] || null,
+      })
     ).length
-    const avgRating = remarks.length > 0
-      ? (remarks.reduce((sum, r) => sum + (r.rating || 0), 0) / remarks.length).toFixed(1)
-      : '0.0'
 
     return {
-      assignedStudents: relationships.length,
-      pendingTasks,
-      remarksGiven: remarks.length,
-      avgRating,
+      assignedStudents: studentIds.length,
+      pendingTasks: pendingRows.length,
+      overdueTasks: overdueRows.length,
+      remarksGiven: (remRes.data || []).length,
+      needingReview,
+      error: null,
     }
   },
 
   // ============================================
-  // MENTOR RECENT ACTIVITY
+  // MENTOR RECENT ACTIVITY (query-based, no event table)
+  // Derives events from assignment created/updated/completed/overdue
+  // moments and recent remarks for connected students.
   // ============================================
   async getMentorRecentActivity(mentorId) {
-    const { data: tasks, error: tasksErr } = await supabase
-      .from('assigned_tasks')
-      .select('id, title, status, created_at, students(id, profiles(full_name))')
+    const { data: rels, error: relErr } = await supabase
+      .from('mentor_student_relationships')
+      .select('student_id')
+      .eq('mentor_id', mentorId)
+      .eq('status', 'active')
+    if (relErr) return { data: [], error: relErr }
+
+    const studentIds = (rels || []).map((r) => r.student_id)
+    if (studentIds.length === 0) return { data: [], error: null }
+
+    const [asgRes, remRes] = await Promise.all([
+      supabase
+        .from('assignments')
+        .select(
+          'id, title, status, created_at, updated_at, due_date, created_by_role, students(id, profiles(full_name))'
+        )
+        .in('student_id', studentIds)
+        .order('updated_at', { ascending: false })
+        .limit(30),
+      supabase
+        .from('mentor_remarks')
+        .select('id, content, created_at, students(id, profiles(full_name))')
+        .eq('mentor_id', mentorId)
+        .order('created_at', { ascending: false })
+        .limit(10),
+    ])
+    const firstErr = asgRes.error || remRes.error
+    if (firstErr) return { data: [], error: firstErr }
+
+    const now = new Date()
+    const events = []
+    for (const a of asgRes.data || []) {
+      const who = a.students?.profiles?.full_name || 'Student'
+      if (a.status === 'completed' && a.updated_at) {
+        events.push({
+          id: `asg-done-${a.id}`,
+          type: 'completed',
+          message: `${who} completed ${a.title}`,
+          at: a.updated_at,
+        })
+      }
+      if (a.created_at) {
+        events.push({
+          id: `asg-new-${a.id}`,
+          type: a.created_by_role === 'mentor' ? 'assigned' : 'created',
+          message:
+            a.created_by_role === 'mentor'
+              ? `You assigned "${a.title}" to ${who}`
+              : `${who} added ${a.title}`,
+          at: a.created_at,
+        })
+      }
+      if (isOverdueAssignment(a, now)) {
+        events.push({
+          id: `asg-od-${a.id}`,
+          type: 'overdue',
+          message: `${a.title} (${who}) became overdue`,
+          at: a.due_date,
+        })
+      }
+    }
+    for (const r of remRes.data || []) {
+      const who = r.students?.profiles?.full_name || 'Student'
+      events.push({
+        id: `rem-${r.id}`,
+        type: 'remark',
+        message: `You added a remark for ${who}`,
+        at: r.created_at,
+      })
+    }
+
+    events.sort((a, b) => new Date(b.at) - new Date(a.at))
+    return {
+      data: events.slice(0, 8).map((e) => ({ ...e, when: relativeTime(e.at, now) })),
+      error: null,
+    }
+  },
+
+  // ============================================
+  // MENTOR PORTAL — connection, students, reviews
+  // ============================================
+
+  // Student side: connect to a mentor by invite code (RPC — no UUIDs).
+  async connectToMentorByCode(code) {
+    const { data, error } = await supabase.rpc('request_mentor_connection', {
+      p_code: code,
+    })
+    return { data, error }
+  },
+
+  // Student side: mentor card info via RPC (name, status, last review,
+  // latest remark). Returns { connected: false } when unconnected.
+  async getMyMentorInfo() {
+    const { data, error } = await supabase.rpc('get_student_mentor_info')
+    return { data, error }
+  },
+
+  // Active student ids for a mentor (RLS scopes this to own relationships).
+  async getMentorStudentIds(mentorId) {
+    const { data, error } = await supabase
+      .from('mentor_student_relationships')
+      .select('student_id')
+      .eq('mentor_id', mentorId)
+      .eq('status', 'active')
+    if (error) return { data: null, error }
+    return { data: (data || []).map((r) => r.student_id), error: null }
+  },
+
+  // Assignments across connected students — the SAME records shown in the
+  // students' Study Tracker (no duplicate task tables). RLS scopes the read.
+  async getAssignmentsForStudents(studentIds) {
+    if (!studentIds || studentIds.length === 0) return { data: [], error: null }
+    const { data, error } = await supabase
+      .from('assignments')
+      .select('*, students(id, profiles(full_name))')
+      .in('student_id', studentIds)
+      .order('created_at', { ascending: false })
+    return { data, error }
+  },
+
+  // My Students rows: connected student + live academic stats + status.
+  async getMentorStudentsWithStats(mentorId) {
+    const { data: rels, error: relErr } = await supabase
+      .from('mentor_student_relationships')
+      .select('id, status, assigned_at, students(id, usn, profiles(full_name))')
+      .eq('mentor_id', mentorId)
+      .eq('status', 'active')
+    if (relErr) return { data: null, error: relErr }
+
+    const rows = rels || []
+    if (rows.length === 0) return { data: [], error: null }
+
+    const studentIds = rows.map((r) => r.students?.id).filter(Boolean)
+    const [asgRes, revRes] = await Promise.all([
+      supabase
+        .from('assignments')
+        .select('id, student_id, status, due_date')
+        .in('student_id', studentIds),
+      supabase
+        .from('student_reviews')
+        .select('student_id, reviewed_at')
+        .eq('mentor_id', mentorId),
+    ])
+    if (asgRes.error) return { data: null, error: asgRes.error }
+    if (revRes.error) return { data: null, error: revRes.error }
+
+    const lastReview = {}
+    for (const r of revRes.data || []) {
+      if (!lastReview[r.student_id] || r.reviewed_at > lastReview[r.student_id]) {
+        lastReview[r.student_id] = r.reviewed_at
+      }
+    }
+    const byStudent = {}
+    for (const a of asgRes.data || []) {
+      const s = (byStudent[a.student_id] ||= {
+        total: 0,
+        completed: 0,
+        in_progress: 0,
+        pending: 0,
+        overdue: 0,
+      })
+      s.total++
+      if (isOverdueAssignment(a)) s.overdue++
+      if (a.status === 'completed') s.completed++
+      else if (a.status === 'in_progress' && !isOverdueAssignment(a)) s.in_progress++
+      else if (!isOverdueAssignment(a)) s.pending++
+    }
+
+    const data = rows
+      .filter((r) => r.students?.id)
+      .map((rel) => {
+        const st = byStudent[rel.students.id] || {
+          total: 0,
+          completed: 0,
+          in_progress: 0,
+          pending: 0,
+          overdue: 0,
+        }
+        const lastReviewedAt = lastReview[rel.students.id] || null
+        return {
+          relationshipId: rel.id,
+          studentId: rel.students.id,
+          name: rel.students.profiles?.full_name || 'Student',
+          usn: rel.students.usn || '',
+          connectedAt: rel.assigned_at,
+          ...st,
+          lastReviewedAt,
+          needsReview: studentNeedsReview({
+            overdue: st.overdue,
+            pending: st.pending,
+            lastReviewedAt,
+          }),
+        }
+      })
+    return { data, error: null }
+  },
+
+  // Student detail page for mentors. RLS scopes every query so a
+  // non-connected student resolves to null.
+  async getMentorStudentDetail(mentorId, studentId) {
+    const [stRes, asgRes, remRes, revRes] = await Promise.all([
+      supabase
+        .from('students')
+        .select('id, usn, profiles(full_name, email)')
+        .eq('id', studentId)
+        .maybeSingle(),
+      supabase
+        .from('assignments')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('mentor_remarks')
+        .select('*, assignments(id, title)')
+        .eq('student_id', studentId)
+        .eq('mentor_id', mentorId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('student_reviews')
+        .select('reviewed_at, notes')
+        .eq('student_id', studentId)
+        .eq('mentor_id', mentorId)
+        .order('reviewed_at', { ascending: false })
+        .limit(1),
+    ])
+    const firstErr = stRes.error || asgRes.error || remRes.error || revRes.error
+    if (firstErr) return { data: null, error: firstErr }
+    if (!stRes.data) {
+      return {
+        data: null,
+        error: { message: 'Student not found or not connected to you.' },
+      }
+    }
+    return {
+      data: {
+        student: stRes.data,
+        assignments: asgRes.data || [],
+        remarks: remRes.data || [],
+        lastReview: revRes.data?.[0] || null,
+      },
+      error: null,
+    }
+  },
+
+  // Mentor-side remarks feed with student + assignment context.
+  async getMentorRemarks(mentorId) {
+    const { data, error } = await supabase
+      .from('mentor_remarks')
+      .select('*, assignments(id, title), students(id, profiles(full_name))')
       .eq('mentor_id', mentorId)
       .order('created_at', { ascending: false })
-      .limit(5)
+    return { data, error }
+  },
 
-    if (tasksErr) return { data: [], error: tasksErr }
-    return { data: tasks || [], error: null }
+  // "Mark as Reviewed" — one row per review event.
+  async createStudentReview(mentorId, studentId, notes = null) {
+    const { data, error } = await supabase
+      .from('student_reviews')
+      .insert({ mentor_id: mentorId, student_id: studentId, notes })
+      .select()
+      .single()
+    return { data, error }
   },
 }

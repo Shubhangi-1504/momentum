@@ -1,12 +1,11 @@
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard,
   Users,
   ClipboardList,
   MessageSquare,
-  Star,
   BookOpen,
   LogOut,
   Menu,
@@ -16,14 +15,13 @@ import {
 
 const navigation = [
   { name: 'Dashboard', href: '/mentor', icon: LayoutDashboard },
-  { name: 'Students', href: '/mentor/students', icon: Users },
-  { name: 'Tasks', href: '/mentor/tasks', icon: ClipboardList },
-  { name: 'Remarks', href: '/mentor/remarks', icon: MessageSquare },
-  { name: 'Ratings', href: '/mentor/ratings', icon: Star },
-  { name: 'Journals', href: '/mentor/journals', icon: BookOpen },
+  { name: 'My Students', href: '/mentor/students', icon: Users },
+  { name: 'Study Tasks', href: '/mentor/tasks', icon: ClipboardList },
+  { name: 'Mentor Remarks', href: '/mentor/remarks', icon: MessageSquare },
+  { name: 'Shared Journals', href: '/mentor/journals', icon: BookOpen },
 ]
 
-export default function MentorLayout({ children }) {
+export default function MentorLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
@@ -35,7 +33,7 @@ export default function MentorLayout({ children }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -46,15 +44,15 @@ export default function MentorLayout({ children }) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-line transform transition-transform duration-200 ease-in-out lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
+          <div className="flex items-center justify-between h-16 px-4 border-b border-line">
             <Link to="/mentor" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-md shadow-[#4CAF50]/25">
                 <Users className="w-5 h-5 text-white" />
               </div>
               <span className="font-bold text-gray-900">MentorPortal</span>
@@ -70,7 +68,10 @@ export default function MentorLayout({ children }) {
           {/* Navigation */}
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
-              const isActive = location.pathname === item.href
+              const isActive =
+                item.href === '/mentor'
+                  ? location.pathname === '/mentor'
+                  : location.pathname.startsWith(item.href)
               return (
                 <Link
                   key={item.name}
@@ -78,11 +79,11 @@ export default function MentorLayout({ children }) {
                   onClick={() => setSidebarOpen(false)}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                     isActive
-                      ? 'bg-purple-50 text-purple-700'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      ? 'bg-primary-soft text-primary-dark'
+                      : 'text-[#4B5567] hover:bg-[#F1F8F3] hover:text-ink'
                   }`}
                 >
-                  <item.icon className={`w-5 h-5 ${isActive ? 'text-purple-600' : 'text-gray-400'}`} />
+                  <item.icon className={`w-5 h-5 ${isActive ? 'text-primary' : 'text-[#7C8798]'}`} />
                   <span className="font-medium">{item.name}</span>
                 </Link>
               )
@@ -90,10 +91,10 @@ export default function MentorLayout({ children }) {
           </nav>
 
           {/* User section */}
-          <div className="p-4 border-t border-gray-200">
+          <div className="p-4 border-t border-line">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                <User className="w-5 h-5 text-purple-600" />
+              <div className="w-10 h-10 bg-primary-soft rounded-full flex items-center justify-center">
+                <User className="w-5 h-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
@@ -129,8 +130,10 @@ export default function MentorLayout({ children }) {
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="p-6">{children}</main>
+        {/* Page content — nested routes render here via Outlet */}
+        <main className="p-6">
+          <Outlet />
+        </main>
       </div>
     </div>
   )
