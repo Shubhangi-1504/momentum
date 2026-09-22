@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { dbService } from '../../services/dbService'
+import { dueCountdown, COUNTDOWN_META, dateKey, isoToKey } from '../../utils/consistencyUtils'
 import {
   BookOpen,
   Plus,
@@ -39,6 +40,7 @@ const EMPTY_FORM = {
   title: '',
   subject: '',
   description: '',
+  start_date: '',
   due_date: '',
   priority: 'medium',
   status: 'pending',
@@ -147,6 +149,7 @@ export default function StudyTracker() {
       title: a.title || '',
       subject: a.subject || '',
       description: a.description || '',
+      start_date: a.start_date || '',
       due_date: a.due_date ? a.due_date.slice(0, 10) : '',
       priority: a.priority || 'medium',
       status: STATUS_OPTIONS.includes(a.status) ? a.status : 'pending',
@@ -169,6 +172,7 @@ export default function StudyTracker() {
         title: form.title.trim(),
         subject: form.subject.trim() || null,
         description: form.description.trim() || null,
+        start_date: form.start_date || null,
         due_date: form.due_date ? new Date(`${form.due_date}T12:00:00`).toISOString() : null,
         priority: form.priority,
         status: form.status,
@@ -246,6 +250,12 @@ export default function StudyTracker() {
         <SummaryCard label="In Progress" value={counts.in_progress} icon={PlayCircle} tone="text-blue-700 bg-blue-50" />
         <SummaryCard label="Completed" value={counts.completed} icon={CheckCircle2} tone="text-green-700 bg-green-50" />
         <SummaryCard label="Overdue" value={counts.overdue} icon={AlertCircle} tone="text-red-700 bg-red-50" />
+      </div>
+
+      {/* Deadline awareness: mini calendar + next-up list */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-6">
+        <DeadlineCalendar assignments={assignments} />
+        <UpcomingDeadlines assignments={assignments} isOverdue={isOverdue} />
       </div>
 
       {/* Filters + sort */}
@@ -415,10 +425,13 @@ function AssignmentTable({ rows, isOverdue, onEdit, onDelete, onStatusChange, de
                   </td>
                   <td className="px-5 py-4 text-gray-600">{a.subject || '—'}</td>
                   <td className="px-5 py-4">
-                    <span className={`inline-flex items-center gap-1.5 ${overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
-                      <CalendarDays className="w-4 h-4 text-gray-400" />
-                      {a.due_date ? formatDate(a.due_date) : '—'}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`inline-flex items-center gap-1.5 ${overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                        <CalendarDays className="w-4 h-4 text-gray-400" />
+                        {a.due_date ? formatDate(a.due_date) : '—'}
+                      </span>
+                      <DueCountdownBadge a={a} />
+                    </div>
                   </td>
                   <td className="px-5 py-4">
                     <span className={`inline-block px-2.5 py-1 rounded-full border text-xs font-medium ${prio.classes}`}>
@@ -455,7 +468,6 @@ function AssignmentTable({ rows, isOverdue, onEdit, onDelete, onStatusChange, de
       {/* Mobile cards */}
       <div className="md:hidden space-y-3">
         {rows.map((a) => {
-          const overdue = isOverdue(a)
           const meta = STATUS_META[a.status] || STATUS_META.pending
           const prio = PRIORITY_META[a.priority] || PRIORITY_META.medium
           return (
@@ -465,8 +477,10 @@ function AssignmentTable({ rows, isOverdue, onEdit, onDelete, onStatusChange, de
                   <p className="font-medium text-gray-900">{a.title}</p>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {a.subject || 'No subject'} · Due {a.due_date ? formatDate(a.due_date) : '—'}
-                    {overdue && <span className="text-red-600 font-medium"> · Overdue</span>}
                   </p>
+                  <div className="mt-1.5">
+                    <DueCountdownBadge a={a} />
+                  </div>
                 </div>
                 <span className={`shrink-0 inline-block px-2.5 py-1 rounded-full border text-xs font-medium ${prio.classes}`}>
                   {prio.label}
@@ -524,6 +538,25 @@ function StatusSelect({ a, meta, onChange }) {
   )
 }
 
+/**
+ * Live countdown chip: "3 days left", "Due today", "Overdue by 2 days".
+ * Calendar-date math — no negative or confusing labels. Renders nothing
+ * when there's no due date or the task is completed.
+ */
+function DueCountdownBadge({ a }) {
+  const cd = dueCountdown({
+    dueKey: isoToKey(a.due_date),
+    completed: a.status === 'completed',
+  })
+  if (cd.state === 'none' || cd.state === 'completed') return null
+  return (
+    <span className={`inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full border text-[11px] font-medium ${COUNTDOWN_META[cd.state]}`}>
+      <Clock className="w-3 h-3" />
+      {cd.label}
+    </span>
+  )
+}
+
 function AssignmentModal({ form, setForm, onClose, onSubmit, saving, editing }) {
   const today = new Date().toISOString().slice(0, 10)
   return (
@@ -571,6 +604,15 @@ function AssignmentModal({ form, setForm, onClose, onSubmit, saving, editing }) 
                 min={editing ? undefined : today}
                 value={form.due_date}
                 onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Start date</label>
+              <input
+                type="date"
+                value={form.start_date}
+                onChange={(e) => setForm({ ...form, start_date: e.target.value })}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
               />
             </div>
@@ -640,4 +682,130 @@ function AssignmentModal({ form, setForm, onClose, onSubmit, saving, editing }) 
 function formatDate(iso) {
   const d = new Date(iso)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// ============================================
+// Mini deadline calendar — current month only, marks days with a
+// pending/overdue due date (amber) or overdue (red) and today (ring).
+// Deadline awareness, not a calendar app.
+// ============================================
+const CAL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const CAL_WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+
+function DeadlineCalendar({ assignments }) {
+  const today = dateKey()
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth()
+
+  const dueByDay = useMemo(() => {
+    const map = {} // day-of-month -> 'overdue' | 'due'
+    for (const a of assignments || []) {
+      if (a.status === 'completed' || !a.due_date) continue
+      const k = isoToKey(a.due_date)
+      if (!k || !k.startsWith(`${y}-${String(m + 1).padStart(2, '0')}-`)) continue
+      const day = parseInt(k.slice(8), 10)
+      const isOd = k < today
+      if (map[day] !== 'overdue') map[day] = isOd ? 'overdue' : 'due'
+    }
+    return map
+  }, [assignments, today, y, m])
+
+  const weeks = useMemo(() => {
+    const lead = new Date(y, m, 1).getDay()
+    const daysInMonth = new Date(y, m + 1, 0).getDate()
+    const cells = []
+    for (let i = 0; i < lead; i++) cells.push(null)
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+    while (cells.length % 7 !== 0) cells.push(null)
+    const out = []
+    for (let i = 0; i < cells.length; i += 7) out.push(cells.slice(i, i + 7))
+    return out
+  }, [y, m])
+
+  return (
+    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+      <div className="flex items-center gap-2 mb-3">
+        <CalendarDays className="w-4 h-4 text-gray-400" />
+        <p className="text-sm font-semibold text-gray-900">{CAL_MONTHS[m]} {y}</p>
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {CAL_WEEKDAYS.map((w) => (
+          <div key={w} className="h-6 flex items-center justify-center text-[9px] text-gray-400 font-medium">{w}</div>
+        ))}
+        {weeks.flat().map((day, i) => {
+          if (!day) return <div key={`p${i}`} className="h-7" />
+          const k = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          const mark = dueByDay[day]
+          const isToday = k === today
+          return (
+            <div
+              key={k}
+              title={
+                mark === 'overdue'
+                  ? 'Overdue work due this day'
+                  : mark === 'due'
+                    ? 'Task due this day'
+                    : isToday
+                      ? 'Today'
+                      : undefined
+              }
+              className={`h-7 rounded-md border flex items-center justify-center text-[11px] font-medium ${
+                mark === 'overdue'
+                  ? 'bg-red-50 text-red-700 border-red-200'
+                  : mark === 'due'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-white text-gray-500 border-gray-100'
+              } ${isToday ? 'ring-2 ring-primary/40' : ''}`}
+            >
+              {day}
+            </div>
+          )
+        })}
+      </div>
+      <div className="flex items-center gap-3 mt-3 text-[10px] text-gray-400">
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-200" /> Due</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-100 border border-red-200" /> Overdue</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-white border border-primary/60" /> Today</span>
+      </div>
+    </div>
+  )
+}
+
+// Next-up deadlines: the 4 nearest unfinished due dates with countdowns.
+function UpcomingDeadlines({ assignments }) {
+  const today = dateKey()
+  const upcoming = useMemo(() => {
+    return (assignments || [])
+      .filter((a) => a.status !== 'completed' && a.due_date)
+      .map((a) => ({ a, cd: dueCountdown({ dueKey: isoToKey(a.due_date), completed: false, todayK: today }) }))
+      .sort((x, z) => x.cd.days - z.cd.days)
+      .slice(0, 4)
+  }, [assignments, today])
+
+  return (
+    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 lg:col-span-2">
+      <div className="flex items-center gap-2 mb-3">
+        <Clock className="w-4 h-4 text-gray-400" />
+        <p className="text-sm font-semibold text-gray-900">Upcoming deadlines</p>
+      </div>
+      {upcoming.length === 0 ? (
+        <p className="text-sm text-gray-500 py-6 text-center">Nothing due — you're all caught up.</p>
+      ) : (
+        <div className="space-y-2">
+          {upcoming.map(({ a, cd }) => (
+            <div key={a.id} className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-gray-50">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{a.title}</p>
+                <p className="text-xs text-gray-400">{a.due_date ? formatDate(a.due_date) : ''}</p>
+              </div>
+              <span className={`shrink-0 inline-block px-2.5 py-1 rounded-full border text-xs font-medium ${COUNTDOWN_META[cd.state]}`}>
+                {cd.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }

@@ -83,8 +83,10 @@ export default function StudentDetails() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">My Students</h1>
-          <p className="text-gray-600 mt-1">Students connected to you via your mentor code.</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Students</h1>
+          <p className="text-gray-600 mt-1.5 text-sm md:text-base">
+            Students connected to you via your mentor code.
+          </p>
         </div>
         <button
           onClick={() => window.location.reload()}
@@ -96,13 +98,13 @@ export default function StudentDetails() {
       </div>
 
       {/* Mentor code card */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+      <div className="bg-white rounded-2xl border border-line shadow-sm p-5 mb-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 bg-primary-soft rounded-xl flex items-center justify-center shrink-0">
             <UserPlus className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-900">Your mentor code</p>
+            <p className="text-sm font-semibold text-gray-900">Your mentor code</p>
             <p className="text-xs text-gray-500 mt-0.5">
               Share this with a student so they can connect with you from their Mentor page.
             </p>
@@ -208,7 +210,7 @@ export default function StudentDetails() {
 function StudentRow({ s }) {
   const status = reviewStatusMeta(s.needsReview)
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+    <div className="bg-white rounded-2xl border border-line shadow-sm p-5 hover:shadow-md transition-shadow">
       <div className="flex flex-col md:flex-row md:items-center gap-4">
         {/* Identity */}
         <div className="flex items-center gap-3 md:w-56 shrink-0">

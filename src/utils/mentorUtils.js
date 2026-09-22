@@ -34,9 +34,20 @@ export function formatDate(iso) {
   return formatDateShort(new Date(iso))
 }
 
-/** Same overdue rule the Student Study Tracker uses. */
+/**
+ * Same overdue rule the Student Study Tracker uses — calendar-date based:
+ * a task is overdue when its due DATE is before TODAY (local), regardless
+ * of time-of-day. Matches the Study Tracker's date-only due form.
+ */
 export function isOverdueAssignment(a, now = new Date()) {
-  return a.status !== 'completed' && !!a.due_date && new Date(a.due_date) < now
+  if (a.status === 'completed' || !a.due_date) return false
+  const due = new Date(a.due_date)
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+  return due < today && !(
+    due.getFullYear() === today.getFullYear() &&
+    due.getMonth() === today.getMonth() &&
+    due.getDate() === today.getDate()
+  )
 }
 
 /**

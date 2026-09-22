@@ -51,11 +51,15 @@ async function mkUser(n, role) {
     global: { headers: { Authorization: `Bearer ${data.session.access_token}` } },
   })
   const table = role === 'mentor' ? 'mentors' : 'students'
-  const { data: row } = await authed
+  // connection_code exists only on mentors; selecting it on students
+  // errors and leaves roleId undefined (breaking every later check).
+  const select = role === 'mentor' ? 'id, connection_code' : 'id'
+  const { data: row, error: rowErr } = await authed
     .from(table)
-    .select('id, connection_code')
+    .select(select)
     .eq('profile_id', data.user.id)
     .single()
+  if (rowErr || !row) console.log(`  (!) ${table} lookup failed:`, rowErr?.message || 'no row')
   return { email, client: authed, uid: data.user.id, roleId: row?.id, code: row?.connection_code }
 }
 
@@ -289,6 +293,79 @@ console.log('\n=== Journal privacy ===')
     .select('*')
     .eq('id', jA.id)
   check('student B cannot read student A journal (even shared)', bSees?.length === 0, `got ${bSees?.length}`)
+}
+
+console.log('\n=== Mentor reads student consistency data (read-only) ===')
+{
+  // Seed a habit + today's log for student A
+  const { data: habit, error: hErr } = await studentA.client
+    .from('habits')
+    .insert({ student_id: studentA.roleId, name: 'Read 30 min', frequency: 'daily', target_count: 7 })
+    .select()
+    .single()
+  check('student A creates a habit', !!habit?.id, hErr?.message || '')
+
+  const today = new Date()
+  today.setHours(12, 0, 0, 0)
+  const logDate = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+  const { data: log, error: lErr } = await studentA.client
+    .from('habit_logs')
+    .insert({ habit_id: habit.id, log_date: logDate, count: 1, completed: true })
+    .select()
+    .single()
+  check('student A logs habit for today', !!log?.id, lErr?.message || '')
+
+  // Mentor A (connected) can read habits + logs
+  const { data: mHabits } = await mentorA.client
+    .from('habits')
+    .select('id, name')
+    .eq('student_id', studentA.roleId)
+  check('mentor A reads connected student habits', (mHabits || []).length === 1, `got ${mHabits?.length}`)
+
+  const habitIds = (mHabits || []).map((h) => h.id)
+  const { data: mLogs } = await mentorA.client
+    .from('habit_logs')
+    .select('id, habit_id, log_date, completed')
+    .in('habit_id', habitIds)
+  check('mentor A reads connected student habit logs (.in path)', (mLogs || []).length === 1, `got ${mLogs?.length}`)
+  check('mentor A log read is completed=true', mLogs?.[0]?.completed === true, '')
+
+  // Mentor B (NOT connected to student A) must see nothing
+  const { data: bHabits } = await mentorB.client
+    .from('habits')
+    .select('id')
+    .eq('student_id', studentA.roleId)
+  check('mentor B cannot read student A habits (not connected)', (bHabits || []).length === 0, `got ${bHabits?.length}`)
+
+  const { data: bLogs } = await mentorB.client
+    .from('habit_logs')
+    .select('id')
+    .in('habit_id', habitIds)
+  check('mentor B cannot read student A habit logs', (bLogs || []).length === 0, `got ${bLogs?.length}`)
+
+  // Mentor must NOT be able to write student habit data
+  const { error: wErr } = await mentorA.client
+    .from('habit_logs')
+    .insert({ habit_id: habit.id, log_date: logDate, count: 5, completed: true })
+    .select()
+    .single()
+  check('mentor cannot insert habit logs (RLS write blocked)', !!wErr, 'insert unexpectedly allowed')
+
+  // Consistency RPC for connected + unrelated student
+  const { data: cons } = await mentorA.client.rpc('get_mentor_student_consistency', {
+    p_student_id: studentA.roleId,
+  })
+  check('consistency RPC works for connected student', cons?.ok === true, cons?.error || '')
+  check('consistency RPC returns habit completion dates', (cons?.habit_completion_dates || []).length === 1, `got ${cons?.habit_completion_dates?.length}`)
+
+  const { data: consB } = await mentorB.client.rpc('get_mentor_student_consistency', {
+    p_student_id: studentA.roleId,
+  })
+  check('consistency RPC blocked for unrelated mentor', consB?.ok === false, JSON.stringify(consB))
+
+  // Cleanup habit + log (cascade removes log)
+  const { error: dhErr } = await studentA.client.from('habits').delete().eq('id', habit.id)
+  check('habit cleanup', !dhErr, dhErr?.message || '')
 }
 
 console.log('\n=== Cleanup diag data ===')

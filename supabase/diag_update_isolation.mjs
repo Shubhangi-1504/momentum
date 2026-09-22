@@ -60,3 +60,6 @@ console.log(isolated ? '\n✓ UPDATE isolation CONFIRMED — A cannot mutate B\'
 await B.client.from('assignments').delete().eq('id', created.data.id)
 console.log('cleanup done')
 process.exit(isolated ? 0 : 1)
+
+
+

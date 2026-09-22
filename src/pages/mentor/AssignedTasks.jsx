@@ -188,8 +188,8 @@ export default function AssignedTasks() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Study Tasks</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Study Tasks</h1>
+          <p className="text-gray-600 mt-1.5 text-sm md:text-base">
             Assignments for your connected students — the same tasks they see in their Study Tracker.
           </p>
         </div>

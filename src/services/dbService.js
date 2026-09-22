@@ -2,9 +2,15 @@ import { supabase } from '../lib/supabase'
 import {
   isOverdueAssignment,
   studentNeedsReview,
-  assignmentStats,
   relativeTime,
 } from '../utils/mentorUtils'
+import {
+  dateKey,
+  isoToKey,
+  daysBetweenKeys,
+  overallConsistency,
+  dueCountdown,
+} from '../utils/consistencyUtils'
 
 export const dbService = {
   // ============================================
@@ -287,9 +293,60 @@ export const dbService = {
   async getStudentByProfileId(profileId) {
     const { data, error } = await supabase
       .from('students')
-      .select('id')
+      .select('id, tracking_start_date')
       .eq('profile_id', profileId)
       .single()
+    return { data, error }
+  },
+
+  // ============================================
+  // CONSISTENCY (RPCs from migration 007)
+  // ============================================
+
+  // Student's own consistency snapshot: tracking start date + the real
+  // calendar dates on which habits/assignments were completed.
+  async getMyConsistency() {
+    const { data, error } = await supabase.rpc('get_my_consistency')
+    return { data, error }
+  },
+
+  // Mentor view of the same snapshot for a connected student.
+  // Returns { ok: false } if the student is not connected to the caller.
+  async getMentorStudentConsistency(studentId) {
+    const { data, error } = await supabase.rpc('get_mentor_student_consistency', {
+      p_student_id: studentId,
+    })
+    return { data, error }
+  },
+
+  // All habit logs for every habit of a student in one query (mentor
+  // detail page). Two-step: habit ids first, then logs via .in() —
+  // avoids a PostgREST embed (an .eq('habits.student_id', ...) filter
+  // without habits in the select fails with "habits is not an embedded
+  // resource in this request"). RLS scopes this to connected students only.
+  async getAllHabitLogsForStudent(studentId) {
+    const { data: habitRows, error: habitErr } = await supabase
+      .from('habits')
+      .select('id')
+      .eq('student_id', studentId)
+    if (habitErr) return { data: null, error: habitErr }
+    const habitIds = (habitRows || []).map((h) => h.id)
+    if (habitIds.length === 0) return { data: [], error: null }
+    const { data, error } = await supabase
+      .from('habit_logs')
+      .select('id, habit_id, log_date, count, completed')
+      .in('habit_id', habitIds)
+      .eq('completed', true)
+    return { data, error }
+  },
+
+  // Habits of a student (mentor detail page, read-only via RLS).
+  async getHabitsForStudent(studentId) {
+    const { data, error } = await supabase
+      .from('habits')
+      .select('id, name, color, created_at')
+      .eq('student_id', studentId)
+      .order('created_at', { ascending: false })
     return { data, error }
   },
 
@@ -645,7 +702,7 @@ export const dbService = {
     const [stRes, asgRes, remRes, revRes] = await Promise.all([
       supabase
         .from('students')
-        .select('id, usn, profiles(full_name, email)')
+        .select('id, usn, tracking_start_date, profiles(full_name, email)')
         .eq('id', studentId)
         .maybeSingle(),
       supabase
@@ -686,6 +743,50 @@ export const dbService = {
     }
   },
 
+  // Full mentor-view bundle for the Student Detail consistency section:
+  // student row, assignments, habits and their completion logs — fetched
+  // as SEPARATE queries and combined here. No cross-table embeds: the
+  // previous .eq('habits.student_id', ...) filter on habit_logs without
+  // habits in the select made PostgREST return "habits is not an
+  // embedded resource in this request". Every query is RLS-scoped so a
+  // non-connected student resolves to null / empty lists.
+  async getMentorStudentConsistencyDetail(mentorId, studentId) {
+    const detailRes = await this.getMentorStudentDetail(mentorId, studentId)
+    if (detailRes.error) return detailRes
+    if (!detailRes.data) return detailRes
+
+    // Step 1: the student's habits (RLS: visible only if connected).
+    const habitRes = await supabase
+      .from('habits')
+      .select('id, name, color, category, created_at')
+      .eq('student_id', studentId)
+      .order('created_at', { ascending: true })
+    if (habitRes.error) return { data: null, error: habitRes.error }
+    const habits = habitRes.data || []
+
+    // Step 2: their completion logs, scoped by habit ids (no embed needed).
+    const habitIds = habits.map((h) => h.id)
+    let habitLogs = []
+    if (habitIds.length > 0) {
+      const logRes = await supabase
+        .from('habit_logs')
+        .select('id, habit_id, log_date, count, completed')
+        .in('habit_id', habitIds)
+        .eq('completed', true)
+      if (logRes.error) return { data: null, error: logRes.error }
+      habitLogs = logRes.data || []
+    }
+
+    return {
+      data: {
+        ...detailRes.data,
+        habits,
+        habitLogs,
+      },
+      error: null,
+    }
+  },
+
   // Mentor-side remarks feed with student + assignment context.
   async getMentorRemarks(mentorId) {
     const { data, error } = await supabase
@@ -694,6 +795,121 @@ export const dbService = {
       .eq('mentor_id', mentorId)
       .order('created_at', { ascending: false })
     return { data, error }
+  },
+
+  // ============================================
+  // MENTOR DASHBOARD — STUDENT PROGRESS OVERVIEW
+  // Per-student consistency snapshot for the dashboard's progress table:
+  // streak / study days / habit % come from REAL habit_logs and completed
+  // assignments, never estimated. Deadlines use the shared countdown rule.
+  // RLS scopes every query to connected students only.
+  // ============================================
+  async getMentorProgressOverview(mentorId) {
+    const base = await this.getMentorStudentsWithStats(mentorId)
+    if (base.error) return { data: null, error: base.error }
+    const rows = base.data || []
+    if (rows.length === 0) return { data: [], error: null }
+
+    const studentIds = rows.map((r) => r.studentId)
+
+    // Habits + logs (separate queries, no cross-table embeds).
+    const habitRes = await supabase
+      .from('habits')
+      .select('id, student_id, created_at')
+      .in('student_id', studentIds)
+    if (habitRes.error) return { data: null, error: habitRes.error }
+    const habits = habitRes.data || []
+
+    const habitIds = habits.map((h) => h.id)
+    let habitLogs = []
+    if (habitIds.length > 0) {
+      const logRes = await supabase
+        .from('habit_logs')
+        .select('id, habit_id, log_date, completed')
+        .in('habit_id', habitIds)
+        .eq('completed', true)
+      if (logRes.error) return { data: null, error: logRes.error }
+      habitLogs = logRes.data || []
+    }
+
+    // Tracking start dates for the study-days denominators.
+    const stRes = await supabase
+      .from('students')
+      .select('id, tracking_start_date')
+      .in('id', studentIds)
+    if (stRes.error) return { data: null, error: stRes.error }
+    const startByStudent = {}
+    for (const s of stRes.data || []) startByStudent[s.id] = s.tracking_start_date || null
+
+    const today = dateKey()
+    const logsByHabit = {}
+    for (const l of habitLogs) {
+      if (!l.completed) continue
+      ;(logsByHabit[l.habit_id] ||= []).push(l.log_date)
+    }
+    const habitsByStudent = {}
+    for (const h of habits) (habitsByStudent[h.student_id] ||= []).push(h)
+
+    // Next unfinished deadline per student (nearest first, overdue excluded)
+    // plus completion timestamps for active-day streaks.
+    const asgAllRes = await supabase
+      .from('assignments')
+      .select('id, title, status, due_date, completed_at, updated_at, student_id')
+      .in('student_id', studentIds)
+    if (asgAllRes.error) return { data: null, error: asgAllRes.error }
+    const assignmentsByStudent = {}
+    for (const a of asgAllRes.data || []) {
+      (assignmentsByStudent[a.student_id] ||= []).push(a)
+    }
+
+    const nextDue = {}
+    for (const r of rows) {
+      const future = (assignmentsByStudent[r.studentId] || [])
+        .filter((a) => a.due_date && isoToKey(a.due_date) >= today)
+        .sort((x, z) => new Date(x.due_date) - new Date(z.due_date))[0]
+      if (future) {
+        nextDue[r.studentId] = { title: future.title, countdown: dueCountdown({ dueKey: isoToKey(future.due_date), completed: false, todayK: today }) }
+      }
+    }
+
+    const data = rows.map((r) => {
+      const habitDates = [...new Set((habitsByStudent[r.studentId] || []).flatMap((h) => logsByHabit[h.id] || []))]
+      // Merge assignment completion days into the active-day set so streaks
+      // reflect ALL study activity (same rule as the Student Progress page).
+      const assignDates = (assignmentsByStudent[r.studentId] || [])
+        .filter((a) => a.status === 'completed' && a.completed_at)
+        .map((a) => isoToKey(a.completed_at))
+        .filter(Boolean)
+      const startKey = startByStudent[r.studentId] || today
+      const oc = overallConsistency(habitDates, assignDates, startKey, today)
+      const habitsOf = habitsByStudent[r.studentId] || []
+      const habitPct =
+        habitsOf.length > 0
+          ? Math.round(
+              habitsOf.reduce((sum, h) => {
+                const done = (logsByHabit[h.id] || []).length
+                const created = h.created_at ? isoToKey(h.created_at) : today
+                const age = Math.max(1, daysBetweenKeys(created, today) + 1)
+                return sum + Math.min(100, Math.round((done / age) * 100))
+              }, 0) / habitsOf.length
+            )
+          : null
+      return {
+        ...r,
+        currentStreak: oc.currentStreak,
+        studyDays: oc.activeDays,
+        trackedDays: oc.totalDays,
+        overallPct: oc.overallPct,
+        habitCount: habitsOf.length,
+        habitPct,
+        nextDeadline: nextDue[r.studentId] || null,
+        lastActivityAt: (assignmentsByStudent[r.studentId] || []).reduce(
+          (latest, a) => (a.updated_at && (!latest || a.updated_at > latest) ? a.updated_at : latest),
+          null
+        ),
+      }
+    })
+    return { data, error: null }
   },
 
   // "Mark as Reviewed" — one row per review event.
@@ -705,4 +921,112 @@ export const dbService = {
       .single()
     return { data, error }
   },
+
+  // ============================================
+  // CHAT — private 1:1 Mentor <-> Student conversations.
+  // Identity is always resolved server-side from auth.uid() (see migration
+  // 008); the client never supplies student/mentor/sender ids. RLS enforces
+  // that only a connected pair can view or write messages.
+  // ============================================
+
+  // Get (or lazily create) my conversation. Students: with their connected
+  // mentor. Mentors: pass the connected student's row id.
+  // Returns { data: conversation, error } — friendly message on error.
+  async getOrCreateConversation(studentId = null) {
+    const { data, error } = await supabase.rpc('get_or_create_conversation', {
+      p_student_id: studentId,
+    })
+    if (error) return { data: null, error: chatFriendlyError(error) }
+    return { data, error: null }
+  },
+
+  // All my conversations with counterpart + last message + unread count,
+  // via the RPC in migration 008. Ordered by most recent activity.
+  async getMyConversations() {
+    const { data, error } = await supabase.rpc('get_my_conversations')
+    if (error) return { data: null, error: chatFriendlyError(error) }
+    return { data: data || [], error: null }
+  },
+
+  // Full message history of one conversation (oldest first).
+  async getConversationMessages(conversationId) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('id, conversation_id, sender_id, message, created_at, read_at')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true })
+    if (error) return { data: null, error: chatFriendlyError(error) }
+    return { data: data || [], error: null }
+  },
+
+  // Send as the authenticated user. RLS enforces sender_id = auth.uid()
+  // and conversation membership, so a spoofed sender_id is rejected.
+  async sendMessage(conversationId, message) {
+    const text = (message || '').trim()
+    if (!text) return { data: null, error: { message: 'Message is empty.' } }
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({ conversation_id: conversationId, sender_id: user?.id, message: text })
+      .select()
+      .single()
+    if (error) return { data: null, error: chatFriendlyError(error) }
+    return { data, error: null }
+  },
+
+  // Mark all messages I received in this conversation as read.
+  async markMessagesAsRead(conversationId) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user?.id) return { data: null, error: null }
+    const { data, error } = await supabase
+      .from('messages')
+      .update({ read_at: new Date().toISOString() })
+      .eq('conversation_id', conversationId)
+      .is('read_at', null)
+      .neq('sender_id', user.id)
+      .select('id')
+    if (error) return { data: null, error: chatFriendlyError(error) }
+    return { data, error: null }
+  },
+
+  // Realtime: subscribe to new messages of one conversation.
+  // Returns an unsubscribe function — always call it on cleanup.
+  subscribeToMessages(conversationId, onMessage) {
+    const channel = supabase
+      .channel(`messages:${conversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => onMessage?.(payload.new)
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  },
+}
+
+// Map raw Supabase/Postgres errors to clean user-facing messages while
+// logging the technical detail for debugging.
+function chatFriendlyError(error) {
+  console.error('[dbService/chat]', error)
+  const code = error?.code || ''
+  if (code === '42501' || /row-level security/i.test(error?.message || '')) {
+    return { message: 'You can only chat with students connected to you.' }
+  }
+  if (/no connected mentor/i.test(error?.message || '')) {
+    return { message: 'Connect with a mentor to start chatting.' }
+  }
+  if (/student not connected/i.test(error?.message || '')) {
+    return { message: 'This student is not connected to you.' }
+  }
+  if (/relation .* does not exist|schema cache/i.test(error?.message || '')) {
+    return { message: 'Chat is not available yet — the database migration has not been applied.' }
+  }
+  return { message: 'Something went wrong with chat. Please try again.' }
 }

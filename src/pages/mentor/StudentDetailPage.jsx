@@ -1,8 +1,16 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { dbService } from '../../services/dbService'
 import { formatDate, relativeTime, assignmentStats } from '../../utils/mentorUtils'
+import {
+  dateKey,
+  isoToKey,
+  overallConsistency,
+  dueCountdown,
+  COUNTDOWN_META,
+} from '../../utils/consistencyUtils'
+import MonthCalendar from '../../components/consistency/MonthCalendar'
 import {
   ArrowLeft,
   CheckCircle2,
@@ -15,6 +23,10 @@ import {
   X,
   RefreshCw,
   CalendarDays,
+  Flame,
+  Trophy,
+  CalendarCheck,
+  Sprout,
 } from 'lucide-react'
 
 const STATUS_META = {
@@ -49,7 +61,7 @@ export default function StudentDetailPage() {
       if (!mentor) throw new Error('Mentor record not found.')
       setMentorId(mentor.id)
 
-      const res = await dbService.getMentorStudentDetail(mentor.id, studentId)
+      const res = await dbService.getMentorStudentConsistencyDetail(mentor.id, studentId)
       if (res.error) throw res.error
       setDetail(res.data)
     } catch (err) {
@@ -63,6 +75,49 @@ export default function StudentDetailPage() {
   useEffect(() => {
     if (profile?.id) load()
   }, [profile?.id, load])
+
+  // ---- Consistency (real student records; mentors are read-only) ----
+  // Hooks stay before any early return so hook order is stable.
+  const { student, assignments, remarks, lastReview, habits, habitLogs } = detail || {}
+  const stats = assignmentStats(assignments || [])
+
+  const consistency = useMemo(() => {
+    const today = dateKey()
+    const habitDates = [...new Set((habitLogs || []).filter((l) => l.completed).map((l) => l.log_date))]
+    const assignDates = (assignments || [])
+      .filter((a) => a.status === 'completed' && a.completed_at)
+      .map((a) => isoToKey(a.completed_at))
+    const startKey = (student && student.tracking_start_date) || today
+    return {
+      ...overallConsistency(habitDates, assignDates, startKey, today),
+      habitDates: new Set(habitDates),
+      startKey,
+      habitPct:
+        (habits || []).length > 0
+          ? Math.round(
+              (habits || []).reduce((sum, h) => {
+                const done = (habitLogs || []).filter((l) => l.habit_id === h.id && l.completed).length
+                const created = h.created_at ? isoToKey(h.created_at) : today
+                const age = Math.max(
+                  1,
+                  Math.round((new Date(`${today}T00:00:00Z`) - new Date(`${created}T00:00:00Z`)) / 86400000) + 1
+                )
+                return sum + Math.min(100, Math.round((done / age) * 100))
+              }, 0) / (habits || []).length
+            )
+          : null,
+    }
+  }, [assignments, habits, habitLogs, student])
+
+  const upcoming = useMemo(() => {
+    const today = dateKey()
+    return (assignments || [])
+      .filter((a) => a.status !== 'completed' && a.due_date)
+      .map((a) => ({ a, cd: dueCountdown({ dueKey: isoToKey(a.due_date), completed: false, todayK: today }) }))
+      .filter((x) => x.cd.state !== 'overdue' && x.cd.state !== 'none')
+      .sort((x, z) => x.cd.days - z.cd.days)
+      .slice(0, 3)
+  }, [assignments])
 
   async function markReviewed() {
     if (!mentorId || !studentId) return
@@ -102,9 +157,14 @@ export default function StudentDetailPage() {
     )
   }
 
-  const { student, assignments, remarks, lastReview } = detail
-  const stats = assignmentStats(assignments)
-  const name = student.profiles?.full_name || 'Student'
+  const name = (student && student.profiles?.full_name) || 'Student'
+
+  function calStatus(key) {
+    const today = dateKey()
+    if (key > today) return 'future'
+    if (key < consistency.startKey) return 'none'
+    return consistency.habitDates.has(key) ? 'done' : 'missed'
+  }
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -148,6 +208,49 @@ export default function StudentDetailPage() {
             <BadgeCheck className="w-4 h-4" />
             {reviewing ? 'Saving…' : 'Mark as Reviewed'}
           </button>
+        </div>
+      </div>
+
+      {/* Consistency overview */}
+      <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 mb-6">
+        <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-4">
+          Consistency
+        </h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <div>
+            <MonthCalendar compact statusForKey={calStatus} />
+            <p className="text-[11px] text-gray-400 mt-3">
+              Tracking since {consistency.startKey}. Green = active day (habit or task completed).
+            </p>
+          </div>
+          <div className="lg:col-span-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <ConsistencyStat icon={Flame} label="Current Streak" value={`${consistency.currentStreak}d`} tone="text-orange-600 bg-orange-50" />
+              <ConsistencyStat icon={Trophy} label="Longest Streak" value={`${consistency.longestStreak}d`} tone="text-amber-700 bg-amber-50" />
+              <ConsistencyStat icon={CalendarCheck} label="Study Days" value={`${consistency.activeDays}/${consistency.totalDays}`} tone="text-blue-700 bg-blue-50" />
+              <ConsistencyStat
+                icon={Sprout}
+                label="Habit Consistency"
+                value={consistency.habitPct === null ? '—' : `${consistency.habitPct}%`}
+                tone="text-green-700 bg-green-50"
+              />
+            </div>
+            {upcoming.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-2">Upcoming deadlines</p>
+                <div className="space-y-2">
+                  {upcoming.map(({ a, cd }) => (
+                    <div key={a.id} className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-gray-50">
+                      <p className="text-sm font-medium text-gray-900 truncate">{a.title}</p>
+                      <span className={`shrink-0 inline-block px-2.5 py-1 rounded-full border text-xs font-medium ${COUNTDOWN_META[cd.state]}`}>
+                        {cd.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -334,6 +437,18 @@ function BackLink() {
 }
 
 function ProgressStat({ icon: Icon, label, value, tone }) {
+  return (
+    <div className="rounded-lg border border-gray-100 p-3">
+      <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${tone}`}>
+        <Icon className="w-4 h-4" />
+      </div>
+      <p className="text-xl font-bold text-gray-900">{value}</p>
+      <p className="text-xs text-gray-500">{label}</p>
+    </div>
+  )
+}
+
+function ConsistencyStat({ icon: Icon, label, value, tone }) {
   return (
     <div className="rounded-lg border border-gray-100 p-3">
       <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${tone}`}>

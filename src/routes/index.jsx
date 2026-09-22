@@ -10,11 +10,13 @@ import HabitTracker from '../pages/student/HabitTracker'
 import Journal from '../pages/student/Journal'
 import StudentRemarks from '../pages/student/StudentRemarks'
 import StudentProgress from '../pages/student/StudentProgress'
+import StudentChat from '../pages/student/StudentChat'
 import MentorDashboard from '../pages/mentor/MentorDashboard'
 import StudentDetails from '../pages/mentor/StudentDetails'
 import StudentDetailPage from '../pages/mentor/StudentDetailPage'
 import MentorRemarks from '../pages/mentor/MentorRemarks'
 import AssignedTasks from '../pages/mentor/AssignedTasks'
+import MentorChat from '../pages/mentor/MentorChat'
 import MentorJournals from '../pages/mentor/MentorJournals'
 import ProtectedRoute from '../components/ProtectedRoute'
 
@@ -64,6 +66,10 @@ export const router = createBrowserRouter([
             element: <StudentRemarks />,
           },
           {
+            path: 'chat',
+            element: <StudentChat />,
+          },
+          {
             path: 'progress',
             element: <StudentProgress />,
           },
@@ -100,6 +106,10 @@ export const router = createBrowserRouter([
           {
             path: 'journals',
             element: <MentorJournals />,
+          },
+          {
+            path: 'chat',
+            element: <MentorChat />,
           },
         ],
       },

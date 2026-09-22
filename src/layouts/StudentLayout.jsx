@@ -8,6 +8,7 @@ import {
   PenTool,
   MessageSquare,
   BarChart3,
+  MessagesSquare,
   LogOut,
   Menu,
   X,
@@ -20,6 +21,7 @@ const navigation = [
   { name: 'Habit Tracker', href: '/student/habits', icon: Target },
   { name: 'Journal', href: '/student/journal', icon: PenTool },
   { name: 'Remarks', href: '/student/remarks', icon: MessageSquare },
+  { name: 'Chat', href: '/student/chat', icon: MessagesSquare },
   { name: 'Progress', href: '/student/progress', icon: BarChart3 },
 ]
 

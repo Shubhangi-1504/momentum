@@ -37,6 +37,8 @@ import {
   Pill,
   Wallet,
   Heart,
+  CheckCircle2,
+  Undo2,
 } from 'lucide-react'
 
 // ============================================
@@ -127,11 +129,13 @@ function buildHeatmapWeeks() {
   start.setDate(start.getDate() - start.getDay()) // align to Sunday
   const weeks = []
   const cursor = new Date(start)
+  const todayKey = dateKey(end)
   while (cursor <= end) {
     const week = []
     for (let i = 0; i < 7; i++) {
       if (cursor > end) break
-      week.push({ key: dateKey(cursor), label: dateKey(cursor), day: cursor.getDate(), month: cursor.getMonth() })
+      const k = dateKey(cursor)
+      week.push({ key: k, label: k, day: cursor.getDate(), month: cursor.getMonth(), isToday: k === todayKey })
       cursor.setDate(cursor.getDate() + 1)
     }
     while (week.length < 7) week.push(null)
@@ -143,6 +147,9 @@ function buildHeatmapWeeks() {
 // ============================================
 // Statistics from real habit_logs
 // ============================================
+// Today's local date key — every strict-completion decision uses this.
+const todayKey = dateKey(new Date())
+
 function computeStats(habit, logsMap) {
   const today = dateKey(new Date())
 
@@ -354,42 +361,61 @@ export default function HabitTracker() {
     }
   }
 
-  // Click cycle: not-done → 1× (low) → 2× (medium) → 3× (high) → clear
+  // STRICT: only today is writable. Past days are history — the database
+  // trigger (migration 007) also rejects any non-today write, so both
+  // layers agree. Today's cell cycles: not-done → done → not-done.
   async function handleToggleDay(habit, day) {
+    if (day.key !== todayKey) {
+      showToast('Habits can only be marked for today. Missed days stay missed.')
+      return
+    }
     const existing = logsByHabit[habit.id]?.[day.key]
-    const nextCount = existing ? (existing.count >= 3 ? 0 : existing.count + 1) : 1
     const snapshot = logsByHabit[habit.id]?.[day.key]
 
-    // optimistic
-    setLogsByHabit((prev) => {
-      const m = { ...(prev[habit.id] || {}) }
-      if (nextCount === 0) delete m[day.key]
-      else m[day.key] = { id: existing?.id, count: nextCount, completed: true }
-      return { ...prev, [habit.id]: m }
-    })
-
-    try {
-      if (nextCount === 0) {
-        if (existing?.id) {
+    if (existing) {
+      // Un-complete today (a mistake fix, still today only)
+      setLogsByHabit((prev) => {
+        const m = { ...(prev[habit.id] || {}) }
+        delete m[day.key]
+        return { ...prev, [habit.id]: m }
+      })
+      try {
+        if (existing.id) {
           const { error: dbErr } = await dbService.deleteHabitLog(existing.id)
           if (dbErr) throw dbErr
         }
-      } else {
-        const { data, error: dbErr } = await dbService.createOrUpdateHabitLog({
-          habit_id: habit.id,
-          log_date: day.key,
-          count: nextCount,
-          completed: true,
-        })
-        if (dbErr) throw dbErr
+      } catch (err) {
         setLogsByHabit((prev) => {
           const m = { ...(prev[habit.id] || {}) }
-          m[day.key] = { id: data?.id ?? existing?.id, count: nextCount, completed: true }
+          if (snapshot) m[day.key] = snapshot
           return { ...prev, [habit.id]: m }
         })
+        showToast(err.message || 'Failed to update habit log')
       }
+      return
+    }
+
+    // Mark today complete (1× — simple daily completion, count kept for
+    // backward compatibility with existing data)
+    setLogsByHabit((prev) => {
+      const m = { ...(prev[habit.id] || {}) }
+      m[day.key] = { id: existing?.id, count: 1, completed: true }
+      return { ...prev, [habit.id]: m }
+    })
+    try {
+      const { data, error: dbErr } = await dbService.createOrUpdateHabitLog({
+        habit_id: habit.id,
+        log_date: day.key,
+        count: 1,
+        completed: true,
+      })
+      if (dbErr) throw dbErr
+      setLogsByHabit((prev) => {
+        const m = { ...(prev[habit.id] || {}) }
+        m[day.key] = { id: data?.id ?? existing?.id, count: 1, completed: true }
+        return { ...prev, [habit.id]: m }
+      })
     } catch (err) {
-      // rollback
       setLogsByHabit((prev) => {
         const m = { ...(prev[habit.id] || {}) }
         if (snapshot) m[day.key] = snapshot
@@ -595,6 +621,7 @@ function HabitCard({ habit, logs, weeks, onToggleDay, onEdit, onDelete }) {
   const color = HABIT_COLORS[habit.color] || HABIT_COLORS.green
   const IconComp = (HABIT_ICONS.find((i) => i.id === habit.icon) || HABIT_ICONS[HABIT_ICONS.length - 1]).icon
   const stats = computeStats(habit, logs)
+  const todayDone = !!logs[todayKey]
 
   // Month labels aligned to week columns
   const monthLabels = useMemo(() => {
@@ -657,8 +684,28 @@ function HabitCard({ habit, logs, weeks, onToggleDay, onEdit, onDelete }) {
           </div>
         </div>
 
-        {/* Main: heatmap */}
+        {/* Main: heatmap + today's completion */}
         <div className="flex-1 min-w-0">
+          {/* Strict daily completion: one tap for TODAY only */}
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <p className="text-xs text-gray-500">
+              Today · {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </p>
+            <button
+              type="button"
+              onClick={() => onToggleDay(habit, { key: todayKey })}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                todayDone
+                  ? 'bg-primary-soft text-primary-dark hover:bg-[#dcefdd]'
+                  : 'bg-primary text-white hover:bg-[#43A047]'
+              }`}
+              title={todayDone ? 'Undo today (today only — past days stay as they are)' : 'Mark this habit as completed for today'}
+            >
+              {todayDone ? <Undo2 className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+              {todayDone ? 'Done today — undo' : 'Mark done today'}
+            </button>
+          </div>
+
           <div className="flex gap-1.5">
             {/* Weekday labels */}
             <div className="flex flex-col shrink-0" style={{ paddingTop: 15 }}>
@@ -683,14 +730,23 @@ function HabitCard({ habit, logs, weeks, onToggleDay, onEdit, onDelete }) {
                     <div key={wi} className="flex flex-col" style={{ gap: GAP }}>
                       {week.map((day, di) =>
                         day ? (
-                          <button
-                            key={day.key}
-                            type="button"
-                            title={`${day.key}${logs[day.key] ? ` · ${logs[day.key].count}× done` : ' · not done'}`}
-                            onClick={() => onToggleDay(habit, day)}
-                            className={`${color.heat[logs[day.key] ? Math.min(3, logs[day.key].count || 1) : 0]} rounded-[3px] border border-black/[0.03] hover:ring-2 hover:ring-green-300/60 transition-shadow`}
-                            style={{ width: CELL, height: CELL }}
-                          />
+                          day.isToday ? (
+                            <button
+                              key={day.key}
+                              type="button"
+                              title={`${day.key}${logs[day.key] ? ' · done today' : ' · not done yet'} (tap to toggle)`}
+                              onClick={() => onToggleDay(habit, day)}
+                              className={`${color.heat[logs[day.key] ? 3 : 0]} rounded-[3px] border border-black/[0.03] ring-1 ring-primary/50 hover:ring-2 hover:ring-green-400/70 transition-shadow`}
+                              style={{ width: CELL, height: CELL }}
+                            />
+                          ) : (
+                            <div
+                              key={day.key}
+                              title={`${day.key}${logs[day.key] ? ` · ${logs[day.key].count}× done` : ' · not done'}`}
+                              className={`${color.heat[logs[day.key] ? Math.min(3, logs[day.key].count || 1) : 0]} rounded-[3px] border border-black/[0.03]`}
+                              style={{ width: CELL, height: CELL }}
+                            />
+                          )
                         ) : (
                           <div key={`pad-${di}`} style={{ width: CELL, height: CELL }} />
                         )
@@ -702,12 +758,14 @@ function HabitCard({ habit, logs, weeks, onToggleDay, onEdit, onDelete }) {
             </div>
           </div>
           {/* Legend */}
-          <div className="flex items-center justify-end gap-1 mt-2 text-[9px] text-gray-400">
-            Less
-            {color.heat.map((cls, i) => (
-              <span key={i} className={`${cls} rounded-[2px] border border-black/[0.03]`} style={{ width: CELL, height: CELL }} />
-            ))}
-            More
+          <div className="flex items-center justify-between gap-1 mt-2">
+            <p className="text-[9px] text-gray-400">Only today can be marked — past days are history.</p>
+            <div className="flex items-center gap-1 text-[9px] text-gray-400">
+              Not done
+              <span className={`${color.heat[0]} rounded-[2px] border border-black/[0.03]`} style={{ width: CELL, height: CELL }} />
+              <span className={`${color.heat[3]} rounded-[2px] border border-black/[0.03]`} style={{ width: CELL, height: CELL }} />
+              Done
+            </div>
           </div>
         </div>
 

@@ -44,8 +44,10 @@ export default function MentorJournals() {
     <div className="max-w-6xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Shared Journals</h1>
-          <p className="text-gray-600 mt-1">Journal entries your students chose to share with you.</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Shared Journals</h1>
+          <p className="text-gray-600 mt-1.5 text-sm md:text-base">
+            Journal entries your students chose to share with you.
+          </p>
         </div>
         <button
           onClick={() => window.location.reload()}

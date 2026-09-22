@@ -65,8 +65,8 @@ export default function MentorRemarks() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Mentor Remarks</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Mentor Remarks</h1>
+          <p className="text-gray-600 mt-1.5 text-sm md:text-base">
             Feedback for your students — visible to them on their Mentor page.
           </p>
         </div>
