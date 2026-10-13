@@ -1,0 +1,852 @@
+/* ============================================================
+   Momentum — Student portal "Lemon pop" NEOBRUTALIST styles
+   Scoped under .ns-root (StudentLayout root). Layout classes
+   are prefixed ns-, home-page classes nh-. Nothing here can
+   match inside other student pages' content.
+   Rules: 3px #111 borders, hard offset shadows only, flat fills.
+   ============================================================ */
+
+/* ---------------- Tokens + root ---------------- */
+.ns-root {
+  /* Real rendered height of the layout's mobile header
+     (h-16 = 64px + 3px bottom border) — read by neo-journal.css
+     for the Journal's viewport-accurate heights. */
+  --ns-mobile-header-h: 67px;
+  --neo-bg-page: #fff3c4;
+  --neo-main-bg: #fffdf3;
+  --neo-yellow: #ffd93d;
+  --neo-coral: #ff6b6b;
+  --neo-blue: #4d96ff;
+  --neo-green: #6bcb77;
+  --neo-ink: #111111;
+  --neo-paper: #ffffff;
+  --neo-muted: #555555;
+
+  position: relative;
+  min-height: 100vh;
+  background: var(--neo-main-bg);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--neo-ink);
+}
+
+/* ---------------- Mobile backdrop ---------------- */
+.ns-root .ns-backdrop {
+  background: rgba(17, 17, 17, 0.5);
+}
+
+/* ---------------- Sidebar ---------------- */
+.ns-root .ns-sidebar {
+  background: var(--neo-paper);
+  border-right: 3px solid var(--neo-ink);
+}
+
+/* Logo row (no bottom border) */
+.ns-root .ns-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 72px;
+  padding: 0 16px;
+  flex-shrink: 0;
+}
+.ns-root .ns-side-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+.ns-root .ns-side-logo-badge {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 3px solid var(--neo-ink);
+  border-radius: 10px;
+  background: var(--neo-yellow);
+  box-shadow: 3px 3px 0 var(--neo-ink);
+}
+.ns-root .ns-side-logo-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--neo-ink);
+}
+.ns-root .ns-side-wordmark {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--neo-ink);
+}
+.ns-root .ns-side-close {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 3px solid var(--neo-ink);
+  border-radius: 10px;
+  background: var(--neo-paper);
+  box-shadow: 2px 2px 0 var(--neo-ink);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.ns-root .ns-side-close:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--neo-ink);
+}
+.ns-root .ns-side-close-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--neo-ink);
+}
+
+/* Nav items */
+.ns-root .ns-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 3px solid transparent;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--neo-ink);
+  text-decoration: none;
+  transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.ns-root .ns-nav-link:hover {
+  transform: translateX(3px);
+}
+.ns-root .ns-nav-link--active {
+  background: var(--neo-yellow);
+  border-color: var(--neo-ink);
+  box-shadow: 3px 3px 0 var(--neo-ink);
+}
+.ns-root .ns-nav-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--neo-ink);
+  flex-shrink: 0;
+}
+.ns-root .ns-nav-link:focus-visible,
+.ns-root .ns-side-close:focus-visible,
+.ns-root .ns-signout:focus-visible,
+.ns-root .ns-burger:focus-visible,
+.ns-root .nh-status-btn:focus-visible,
+.ns-root .nh-btn:focus-visible {
+  outline: 3px solid var(--neo-ink);
+  outline-offset: 2px;
+}
+
+/* Bottom user section (no top border) */
+.ns-root .ns-side-foot {
+  padding: 16px;
+  flex-shrink: 0;
+}
+.ns-root .ns-user-card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  background: var(--neo-blue);
+  border: 3px solid var(--neo-ink);
+  border-radius: 10px;
+  box-shadow: 3px 3px 0 var(--neo-ink);
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+.ns-root .ns-user-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ns-root .ns-avatar {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: var(--neo-paper);
+  border: 2px solid var(--neo-ink);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--neo-ink);
+}
+.ns-root .ns-user-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ns-root .ns-user-email {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ns-root .ns-signout {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+  padding: 10px 12px;
+  border: 3px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--neo-ink);
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.ns-root .ns-signout:hover {
+  background: var(--neo-coral);
+  border-color: var(--neo-ink);
+  box-shadow: 3px 3px 0 var(--neo-ink);
+  transform: translateX(3px);
+}
+
+/* ---------------- Mobile header ---------------- */
+.ns-root .ns-mobile-header {
+  background: var(--neo-paper);
+  border-bottom: 3px solid var(--neo-ink);
+}
+.ns-root .ns-burger {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 3px solid var(--neo-ink);
+  border-radius: 10px;
+  background: var(--neo-paper);
+  box-shadow: 3px 3px 0 var(--neo-ink);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.ns-root .ns-burger:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--neo-ink);
+}
+.ns-root .ns-burger-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--neo-ink);
+}
+.ns-root .ns-mobile-wordmark {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--neo-ink);
+}
+
+/* ---------------- Page route-enter ---------------- */
+.ns-root .ns-page {
+  min-width: 0;
+  animation: ns-page-in 0.35s ease-out both;
+}
+@keyframes ns-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------------- Shared entrance / skeleton / error ---------------- */
+@keyframes ns-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.ns-root .nh-skel {
+  border: 3px solid var(--neo-ink);
+  border-radius: 12px;
+  background: #ececec;
+  animation: nh-skel-pulse 1.4s ease-in-out infinite;
+}
+@keyframes nh-skel-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.ns-root .nh-error {
+  background: var(--neo-coral);
+  border: 3px solid var(--neo-ink);
+  border-radius: 12px;
+  color: var(--neo-ink);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 16px;
+}
+
+/* ---------------- Toast ---------------- */
+.ns-root .nh-toast {
+  background: var(--neo-ink);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  border: 3px solid var(--neo-ink);
+  border-radius: 10px;
+  box-shadow: 4px 4px 0 var(--neo-yellow);
+  padding: 10px 16px;
+}
+
+/* ---------------- Home hero (WelcomeCard) ---------------- */
+.ns-root .nh-hero {
+  position: relative;
+  overflow: hidden;
+  background: var(--neo-yellow);
+  border: 3px solid var(--neo-ink);
+  border-radius: 16px;
+  box-shadow: 6px 6px 0 var(--neo-ink);
+  padding: 22px 26px;
+  display: grid;
+  grid-template-columns: 1fr 150px;
+  gap: 12px;
+  align-items: center;
+}
+.ns-root .nh-hero-text {
+  min-width: 0;
+}
+.ns-root .nh-greet-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--neo-ink);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  margin: 0;
+}
+.ns-root .nh-greet-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.ns-root .nh-hero-title {
+  margin: 14px 0 0;
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--neo-ink);
+}
+.ns-root .nh-name-chip {
+  display: inline-block;
+  background: var(--neo-green);
+  border: 3px solid var(--neo-ink);
+  border-radius: 8px;
+  padding: 0 8px;
+  transform: rotate(-2deg);
+  color: var(--neo-ink);
+}
+/* The ONLY gradient allowed: thin quote-highlight band */
+.ns-root .nh-quote {
+  margin: 12px 0 0;
+  max-width: 400px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--neo-ink);
+  background: linear-gradient(transparent 62%, rgba(255, 255, 255, 0.85) 62%);
+}
+.ns-root .nh-hero-sticker {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: var(--neo-coral);
+  border: 3px solid var(--neo-ink);
+  border-radius: 8px;
+  box-shadow: 3px 3px 0 var(--neo-ink);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--neo-ink);
+  animation: nh-wobble 2.6s ease-in-out infinite;
+}
+
+/* ---------------- Date line under the hero ---------------- */
+.ns-root .nh-date-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: -14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #444444;
+}
+.ns-root .nh-date-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: var(--neo-green);
+  border: 2px solid var(--neo-ink);
+  flex-shrink: 0;
+  animation: nh-pulse-dot 1.6s ease-in-out infinite;
+}
+
+/* ---------------- Hero mascot ---------------- */
+.ns-root .nh-hero-mascot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+  padding-top: 16px;
+  animation: nh-bob 2.6s ease-in-out infinite;
+}
+.ns-root .nh-mascot {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.ns-root .nh-o {
+  stroke: var(--neo-ink);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.ns-root .nh-thin {
+  stroke-width: 2.5;
+}
+.ns-root .nh-tassel {
+  transform-box: view-box;
+  transform-origin: 84px 32px;
+  animation: nh-tassel-swing 1.8s ease-in-out infinite;
+}
+.ns-root .nh-tassel-dot {
+  stroke: var(--neo-ink);
+  stroke-width: 2;
+}
+.ns-root .nh-steam {
+  animation: nh-steam-rise 2.4s ease-out infinite;
+}
+.ns-root .nh-steam--2 {
+  animation-delay: 0.9s;
+}
+
+/* ---------------- Stats tiles ---------------- */
+.ns-root .nh-tile {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 3px solid var(--neo-ink);
+  border-radius: 14px;
+  box-shadow: 4px 4px 0 var(--neo-ink);
+  animation: ns-rise 0.5s ease-out both;
+  animation-delay: calc(var(--i, 0) * 50ms);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.ns-root .nh-tile:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--neo-ink);
+}
+.ns-root .nh-tile--blue { background: var(--neo-blue); color: #ffffff; }
+.ns-root .nh-tile--green { background: var(--neo-green); color: var(--neo-ink); }
+.ns-root .nh-tile--coral { background: var(--neo-coral); color: var(--neo-ink); }
+.ns-root .nh-tile--white { background: var(--neo-paper); color: var(--neo-ink); }
+.ns-root .nh-tile-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 3px solid var(--neo-ink);
+  border-radius: 8px;
+  background: var(--neo-paper);
+}
+.ns-root .nh-tile-icon svg {
+  width: 16px;
+  height: 16px;
+  color: var(--neo-ink);
+}
+.ns-root .nh-tile--white .nh-tile-icon {
+  background: var(--neo-yellow);
+}
+.ns-root .nh-tile-value {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+}
+.ns-root .nh-tile-label {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 800;
+}
+.ns-root .nh-tile-sub {
+  margin: 2px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.ns-root .nh-bar {
+  display: block;
+  height: 10px;
+  margin-top: 8px;
+  background: var(--neo-paper);
+  border: 2px solid var(--neo-ink);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+.ns-root .nh-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--neo-ink);
+  transform-origin: left center;
+  animation: nh-bar-grow 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ---------------- Today's Focus ---------------- */
+.ns-root .nh-focus {
+  background: var(--neo-paper);
+  border: 3px solid var(--neo-ink);
+  border-radius: 16px;
+  box-shadow: 5px 5px 0 var(--neo-ink);
+  padding: 18px 20px;
+  animation: ns-rise 0.5s ease-out 0.25s both;
+}
+.ns-root .nh-focus-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.ns-root .nh-focus-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--neo-ink);
+}
+.ns-root .nh-focus-iconbox {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--neo-yellow);
+  border: 3px solid var(--neo-ink);
+  border-radius: 8px;
+}
+.ns-root .nh-focus-iconbox svg {
+  width: 18px;
+  height: 18px;
+  color: var(--neo-ink);
+}
+.ns-root .nh-viewall {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--neo-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 3px;
+  text-decoration-color: var(--neo-yellow);
+  text-underline-offset: 3px;
+}
+.ns-root .nh-viewall svg {
+  width: 15px;
+  height: 15px;
+}
+.ns-root .nh-focus-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ns-root .nh-skel-row {
+  height: 56px;
+  border-radius: 12px;
+}
+.ns-root .nh-skel-value {
+  height: 32px;
+  width: 64px;
+  border-radius: 8px;
+}
+.ns-root .nh-skel-label {
+  height: 12px;
+  width: 96px;
+  border-radius: 6px;
+  margin-top: 10px;
+}
+.ns-root .nh-skel-sub {
+  height: 10px;
+  width: 56px;
+  border-radius: 5px;
+  margin-top: 6px;
+}
+
+/* Task rows */
+.ns-root .nh-task {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--neo-paper);
+  border: 3px solid var(--neo-ink);
+  border-radius: 12px;
+  box-shadow: 3px 3px 0 var(--neo-ink);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.ns-root .nh-task:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--neo-ink);
+}
+.ns-root .nh-status-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: 3px solid var(--neo-ink);
+  border-radius: 8px;
+  background: var(--neo-paper);
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+.ns-root .nh-status-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 2px 2px 0 var(--neo-ink);
+}
+.ns-root .nh-status-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 0 0 0 var(--neo-ink);
+}
+.ns-root .nh-status-in_progress { background: var(--neo-blue); }
+.ns-root .nh-status-completed { background: var(--neo-green); }
+.ns-root .nh-status-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--neo-ink);
+}
+.ns-root .nh-status-btn.nh-status-in_progress .nh-status-icon {
+  color: #ffffff;
+}
+.ns-root .nh-task-body {
+  flex: 1;
+  min-width: 0;
+}
+.ns-root .nh-task-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--neo-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ns-root .nh-task-title--done {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+.ns-root .nh-task-desc {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--neo-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ns-root .nh-task-when {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--neo-muted);
+}
+.ns-root .nh-task-clock {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+.ns-root .nh-chip {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border: 3px solid var(--neo-ink);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--neo-ink);
+}
+.ns-root .nh-chip-low { background: var(--neo-green); }
+.ns-root .nh-chip-medium { background: var(--neo-yellow); }
+.ns-root .nh-chip-high { background: var(--neo-coral); }
+
+/* Empty state */
+.ns-root .nh-empty {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 6px;
+}
+.ns-root .nh-empty-box {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--neo-green);
+  border: 3px solid var(--neo-ink);
+  border-radius: 12px;
+  box-shadow: 3px 3px 0 var(--neo-ink);
+  animation: nh-hop 2s ease-in-out infinite;
+}
+.ns-root .nh-empty-box svg {
+  width: 24px;
+  height: 24px;
+  color: var(--neo-ink);
+}
+.ns-root .nh-empty-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--neo-ink);
+}
+.ns-root .nh-empty-sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--neo-muted);
+}
+
+/* Footer button row (every state) */
+.ns-root .nh-footrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.ns-root .nh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 3px solid var(--neo-ink);
+  border-radius: 10px;
+  box-shadow: 3px 3px 0 var(--neo-ink);
+  background: var(--neo-paper);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--neo-ink);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.ns-root .nh-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.ns-root .nh-btn--yellow {
+  background: var(--neo-yellow);
+}
+.ns-root .nh-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 var(--neo-ink);
+}
+.ns-root .nh-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 var(--neo-ink);
+}
+
+/* ---------------- Keyframes ---------------- */
+@keyframes nh-wobble {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(-1deg); }
+}
+@keyframes nh-pulse-dot {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.5); }
+}
+@keyframes nh-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@keyframes nh-tassel-swing {
+  0%, 100% { transform: rotate(14deg); }
+  50% { transform: rotate(-14deg); }
+}
+@keyframes nh-steam-rise {
+  0% { transform: translateY(4px); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translateY(-12px); opacity: 0; }
+}
+@keyframes nh-bar-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes nh-hop {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(-4deg); }
+}
+
+/* ---------------- Responsive ---------------- */
+/* Bug fix 1: the sidebar X close button is mobile-only — never show it on
+desktop (the unlayered CSS would otherwise beat Tailwind's lg:hidden). */
+@media (min-width: 1024px) {
+  .ns-root .ns-side-close {
+    display: none;
+  }
+}
+@media (max-width: 639.98px) {
+  .ns-root .nh-hero {
+    grid-template-columns: 1fr;
+  }
+  .ns-root .nh-hero-mascot {
+    display: none;
+  }
+}
+
+/* ---------------- Reduced motion ---------------- */
+@media (prefers-reduced-motion: reduce) {
+  .ns-root,
+  .ns-root *,
+  .ns-root *::before,
+  .ns-root *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

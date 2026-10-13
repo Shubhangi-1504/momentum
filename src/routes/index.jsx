@@ -11,13 +11,16 @@ import Journal from '../pages/student/Journal'
 import StudentRemarks from '../pages/student/StudentRemarks'
 import StudentProgress from '../pages/student/StudentProgress'
 import StudentChat from '../pages/student/StudentChat'
+import StudentNotes from '../pages/student/StudentNotes'
 import MentorDashboard from '../pages/mentor/MentorDashboard'
 import StudentDetails from '../pages/mentor/StudentDetails'
 import StudentDetailPage from '../pages/mentor/StudentDetailPage'
 import MentorRemarks from '../pages/mentor/MentorRemarks'
 import AssignedTasks from '../pages/mentor/AssignedTasks'
 import MentorChat from '../pages/mentor/MentorChat'
+import MentorNotes from '../pages/mentor/MentorNotes'
 import MentorJournals from '../pages/mentor/MentorJournals'
+import SharedJournalDetail from '../pages/mentor/SharedJournalDetail'
 import ProtectedRoute from '../components/ProtectedRoute'
 
 export const router = createBrowserRouter([
@@ -70,6 +73,10 @@ export const router = createBrowserRouter([
             element: <StudentChat />,
           },
           {
+            path: 'notes',
+            element: <StudentNotes />,
+          },
+          {
             path: 'progress',
             element: <StudentProgress />,
           },
@@ -108,8 +115,16 @@ export const router = createBrowserRouter([
             element: <MentorJournals />,
           },
           {
+            path: 'journals/:entryId',
+            element: <SharedJournalDetail />,
+          },
+          {
             path: 'chat',
             element: <MentorChat />,
+          },
+          {
+            path: 'notes',
+            element: <MentorNotes />,
           },
         ],
       },

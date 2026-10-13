@@ -1,5 +1,5 @@
-import { ClipboardList, Clock, Circle, CheckCircle2, ArrowRight, Inbox } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { ClipboardList, Clock, Circle, CheckCircle2, ArrowRight, Inbox, Play, Target } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { STATUS_META, PRIORITY_META } from './focusMeta'
 
 // ============================================
@@ -9,100 +9,76 @@ import { STATUS_META, PRIORITY_META } from './focusMeta'
 // ============================================
 
 export default function TodaysFocus({ tasks, loading, error, onCycleStatus }) {
+  const navigate = useNavigate()
+
   return (
-    <section className="bg-white rounded-3xl border border-line shadow-sm p-6 md:p-7 h-full">
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="flex items-center gap-2.5 text-lg font-bold text-gray-900">
-          <span className="w-9 h-9 rounded-xl bg-[#E8F5E9] text-[#2E7D32] flex items-center justify-center">
-            <ClipboardList className="w-5 h-5" />
+    <section className="nh-focus">
+      <div className="nh-focus-head">
+        <h3 className="nh-focus-title">
+          <span className="nh-focus-iconbox">
+            <ClipboardList />
           </span>
           Today's Focus
         </h3>
-        <Link
-          to="/student/study"
-          className="flex items-center gap-1.5 text-sm font-semibold text-[#4CAF50] hover:text-[#43A047] transition-colors"
-        >
+        <Link to="/student/study" className="nh-viewall">
           View All
-          <ArrowRight className="w-4 h-4" />
+          <ArrowRight />
         </Link>
       </div>
 
       {loading ? (
-        <ul className="space-y-3">
+        <ul className="nh-focus-list">
           {[0, 1, 2].map((i) => (
-            <li key={i} className="h-16 rounded-2xl bg-gray-50 animate-pulse" />
+            <li key={i} className="nh-skel nh-skel-row" />
           ))}
         </ul>
       ) : error ? (
-        <div className="rounded-2xl bg-red-50 border border-red-100 p-4 text-sm text-red-600">
-          {error}
-        </div>
+        <div className="nh-error">{error}</div>
       ) : tasks.length === 0 ? (
-        <div className="py-10 text-center">
-          <span className="inline-flex w-14 h-14 rounded-full bg-[#F1F8E9] items-center justify-center mb-3">
-            <Inbox className="w-7 h-7 text-[#81C784]" strokeWidth={1.5} />
+        <div className="nh-empty">
+          <span className="nh-empty-box">
+            <Inbox />
           </span>
-          <p className="font-semibold text-gray-800">Nothing scheduled for today.</p>
-          <p className="text-sm text-gray-500 mt-1">You're all caught up.</p>
+          <div className="min-w-0">
+            <p className="nh-empty-title">Nothing scheduled for today.</p>
+            <p className="nh-empty-sub">You're all caught up.</p>
+          </div>
         </div>
       ) : (
-        <ul className="space-y-3">
+        <ul className="nh-focus-list">
           {tasks.map((t) => {
             const meta = STATUS_META[t.status] || STATUS_META.pending
-            const pm = PRIORITY_META[t.priority] || PRIORITY_META.medium
+            const statusKey =
+              t.status === 'completed' || t.status === 'in_progress' ? t.status : 'pending'
+            const prioKey = PRIORITY_META[t.priority] ? t.priority : 'medium'
+            const pm = PRIORITY_META[prioKey]
             return (
-              <li
-                key={t.id}
-                className="group flex items-center gap-4 rounded-2xl border border-line bg-white px-4 py-3.5 hover:border-[#C8E6C9] hover:bg-[#FBFDFB] transition-colors duration-150"
-              >
+              <li key={t.id} className="nh-task">
                 {/* status cycle button — same semantics as Study Tracker's status change */}
                 <button
                   type="button"
                   onClick={() => onCycleStatus(t)}
                   title={`Status: ${meta.label} — click to advance`}
                   aria-label={`Advance status of ${t.title}`}
-                  className="shrink-0 focus:outline-none focus:ring-2 focus:ring-[#4CAF50]/30 rounded-full"
+                  className={`nh-status-btn nh-status-${statusKey}`}
                 >
                   {t.status === 'completed' ? (
-                    <CheckCircle2 className="w-5 h-5 text-[#4CAF50]" />
+                    <CheckCircle2 className="nh-status-icon" />
+                  ) : t.status === 'in_progress' ? (
+                    <Clock className="nh-status-icon" />
                   ) : (
-                    <Circle
-                      className={`w-5 h-5 ${
-                        t.status === 'in_progress' ? 'text-blue-500' : 'text-gray-300'
-                      } group-hover:text-[#4CAF50] transition-colors`}
-                    />
+                    <Circle className="nh-status-icon" />
                   )}
                 </button>
 
-                <div className="flex-1 min-w-0">
-                  <p
-                    className={`text-sm font-semibold truncate ${
-                      t.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-900'
-                    }`}
-                  >
+                <div className="nh-task-body">
+                  <p className={`nh-task-title ${t.status === 'completed' ? 'nh-task-title--done' : ''}`}>
                     {t.title}
                   </p>
-                  {t.description && (
-                    <p className="text-xs text-gray-500 truncate mt-0.5">{t.description}</p>
-                  )}
-                  <div className="flex items-center flex-wrap gap-1.5 mt-1.5">
-                    <span
-                      className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${meta.classes}`}
-                    >
-                      {meta.label}
-                    </span>
-                    <span
-                      className={`inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full border ${pm.classes}`}
-                    >
-                      {pm.label}
-                    </span>
-                    <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#F1F8E9] text-[#33691E] border border-[#DCEDC8]">
-                      Study
-                    </span>
-                  </div>
+                  {t.description && <p className="nh-task-desc">{t.description}</p>}
                   {t.due_date && (
-                    <p className="flex items-center gap-1 text-[11px] text-gray-400 mt-1.5">
-                      <Clock className="w-3 h-3" />
+                    <p className="nh-task-when">
+                      <Clock className="nh-task-clock" />
                       {new Date(t.due_date).toLocaleTimeString('en-US', {
                         hour: 'numeric',
                         minute: '2-digit',
@@ -110,11 +86,25 @@ export default function TodaysFocus({ tasks, loading, error, onCycleStatus }) {
                     </p>
                   )}
                 </div>
+
+                <span className={`nh-chip nh-chip-${prioKey}`}>{pm.label}</span>
               </li>
             )
           })}
         </ul>
       )}
+
+      {/* Footer actions — same targets the old QuickActions used */}
+      <div className="nh-footrow">
+        <button type="button" onClick={() => navigate('/student/study')} className="nh-btn nh-btn--yellow">
+          <Play />
+          Start Studying
+        </button>
+        <button type="button" onClick={() => navigate('/student/habits')} className="nh-btn">
+          <Target />
+          Track Habit
+        </button>
+      </div>
     </section>
   )
 }

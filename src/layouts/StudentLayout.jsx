@@ -7,13 +7,15 @@ import {
   Target,
   PenTool,
   MessageSquare,
+  StickyNote,
   BarChart3,
   MessagesSquare,
   LogOut,
   Menu,
   X,
-  User,
+  Zap,
 } from 'lucide-react'
+import '../styles/neo-student.css'
 
 const navigation = [
   { name: 'Home', href: '/student', icon: Home },
@@ -22,6 +24,7 @@ const navigation = [
   { name: 'Journal', href: '/student/journal', icon: PenTool },
   { name: 'Remarks', href: '/student/remarks', icon: MessageSquare },
   { name: 'Chat', href: '/student/chat', icon: MessagesSquare },
+  { name: 'Notes', href: '/student/notes', icon: StickyNote },
   { name: 'Progress', href: '/student/progress', icon: BarChart3 },
 ]
 
@@ -36,40 +39,45 @@ export default function StudentLayout() {
     navigate('/login')
   }
 
+  const initial = (profile?.full_name || 'S').trim().charAt(0).toUpperCase()
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="ns-root">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
+          className="ns-backdrop fixed inset-0 z-20 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0 ${
+        className={`ns-sidebar fixed inset-y-0 left-0 z-30 w-64 transform transition-transform duration-200 ease-in-out lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex flex-col h-full">
-          {/* Logo */}            <div className="flex items-center justify-between h-16 px-4 border-b border-line">
-            <Link to="/student" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-md shadow-[#4CAF50]/25">
-                <BookOpen className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-bold text-gray-900">StudyTracker</span>
+          {/* Logo row */}
+          <div className="ns-side-head">
+            <Link to="/student" className="ns-side-brand">
+              <span className="ns-side-logo-badge">
+                <Zap className="ns-side-logo-icon" />
+              </span>
+              <span className="ns-side-wordmark">MOMENTUM</span>
             </Link>
             <button
+              type="button"
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-1 rounded-lg hover:bg-gray-100"
+              className="ns-side-close lg:hidden"
+              aria-label="Close sidebar"
             >
-              <X className="w-5 h-5" />
+              <X className="ns-side-close-icon" />
             </button>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          <nav className="flex-1 px-3 py-4 overflow-y-auto">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href
               return (
@@ -77,38 +85,29 @@ export default function StudentLayout() {
                   key={item.name}
                   to={item.href}
                   onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-primary-soft text-primary-dark'
-                      : 'text-[#4B5567] hover:bg-[#F1F8F3] hover:text-ink'
-                  }`}
+                  className={`ns-nav-link ${isActive ? 'ns-nav-link--active' : ''}`}
                 >
-                  <item.icon className={`w-5 h-5 ${isActive ? 'text-primary' : 'text-[#7C8798]'}`} />
-                  <span className="font-medium">{item.name}</span>
+                  <item.icon className="ns-nav-icon" />
+                  <span>{item.name}</span>
                 </Link>
               )
             })}
           </nav>
 
           {/* User section */}
-          <div className="p-4 border-t border-line">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-primary-soft rounded-full flex items-center justify-center">
-                <User className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
+          <div className="ns-side-foot">
+            <div className="ns-user-card">
+              <span className="ns-avatar">{initial}</span>
+              <span className="ns-user-meta">
+                <span className="ns-user-name truncate">
                   {profile?.full_name || 'Student'}
-                </p>
-                <p className="text-xs text-gray-500 truncate">{profile?.email}</p>
-              </div>
+                </span>
+                <span className="ns-user-email truncate">{profile?.email}</span>
+              </span>
             </div>
-            <button
-              onClick={handleSignOut}
-              className="w-full flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="font-medium">Sign Out</span>
+            <button type="button" onClick={handleSignOut} className="ns-signout">
+              <LogOut className="ns-nav-icon" />
+              <span>Sign Out</span>
             </button>
           </div>
         </div>
@@ -117,22 +116,26 @@ export default function StudentLayout() {
       {/* Main content */}
       <div className="lg:pl-64">
         {/* Mobile header */}
-        <header className="sticky top-0 z-10 bg-white border-b border-line lg:hidden">
+        <header className="ns-mobile-header sticky top-0 z-10 lg:hidden">
           <div className="flex items-center justify-between h-16 px-4">
             <button
+              type="button"
               onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-lg hover:bg-gray-100"
+              className="ns-burger"
+              aria-label="Open sidebar"
             >
-              <Menu className="w-6 h-6" />
+              <Menu className="ns-burger-icon" />
             </button>
-            <span className="font-bold text-gray-900">StudyTracker</span>
+            <span className="ns-mobile-wordmark">MOMENTUM</span>
             <div className="w-10" />
           </div>
         </header>
 
         {/* Page content — nested routes render here via Outlet */}
         <main className="p-6">
-          <Outlet />
+          <div className="ns-page" key={location.pathname}>
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

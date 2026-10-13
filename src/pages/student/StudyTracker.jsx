@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { dbService } from '../../services/dbService'
-import { dueCountdown, COUNTDOWN_META, dateKey, isoToKey } from '../../utils/consistencyUtils'
+import { dueCountdown, dateKey, isoToKey } from '../../utils/consistencyUtils'
+import { fireConfetti } from '../../utils/confetti'
+import MomentumTrack from '../../components/study/MomentumTrack'
+import '../../styles/neo-study.css'
 import {
   BookOpen,
   Plus,
@@ -17,6 +20,7 @@ import {
   RefreshCw,
   Check,
   CalendarDays,
+  Rocket,
 } from 'lucide-react'
 
 const STATUS_OPTIONS = ['pending', 'in_progress', 'completed']
@@ -24,16 +28,27 @@ const PRIORITY_OPTIONS = ['low', 'medium', 'high']
 const FILTERS = ['all', 'pending', 'in_progress', 'completed', 'overdue']
 
 const STATUS_META = {
-  pending: { label: 'Pending', icon: Clock, classes: 'bg-amber-50 text-amber-700 border-amber-200' },
-  in_progress: { label: 'In Progress', icon: PlayCircle, classes: 'bg-blue-50 text-blue-700 border-blue-200' },
-  completed: { label: 'Completed', icon: CheckCircle2, classes: 'bg-green-50 text-green-700 border-green-200' },
-  overdue: { label: 'Overdue', icon: AlertCircle, classes: 'bg-red-50 text-red-700 border-red-200' },
+  pending: { label: 'Pending', icon: Clock, tone: 'nt-st-pending' },
+  in_progress: { label: 'In Progress', icon: PlayCircle, tone: 'nt-st-in_progress' },
+  completed: { label: 'Completed', icon: CheckCircle2, tone: 'nt-st-completed' },
+  overdue: { label: 'Overdue', icon: AlertCircle, tone: 'nt-st-overdue' },
 }
 
 const PRIORITY_META = {
-  low: { label: 'Low', classes: 'bg-gray-100 text-gray-600 border-gray-200' },
-  medium: { label: 'Medium', classes: 'bg-amber-50 text-amber-700 border-amber-200' },
-  high: { label: 'High', classes: 'bg-red-50 text-red-700 border-red-200' },
+  low: { label: 'Low', tone: 'nt-prio--low' },
+  medium: { label: 'Medium', tone: 'nt-prio--medium' },
+  high: { label: 'High', tone: 'nt-prio--high' },
+}
+
+// COUNTDOWN_META (consistencyUtils) mapped to nt- classes by cd.state —
+// presentation only; consistencyUtils.js stays untouched.
+const NT_CD_TONE = {
+  overdue: 'nt-cd--overdue',
+  due_today: 'nt-cd--due-today',
+  due_soon: 'nt-cd--due-soon',
+  upcoming: 'nt-cd--upcoming',
+  completed: 'nt-cd--plain',
+  none: 'nt-cd--plain',
 }
 
 const EMPTY_FORM = {
@@ -182,6 +197,7 @@ export default function StudyTracker() {
         : await dbService.createAssignment({ ...payload, student_id: studentIdRef.current })
       if (dbErr) throw dbErr
       showToast(editingId ? 'Assignment updated' : 'Assignment added')
+      if (!editingId) fireConfetti(window.innerWidth / 2, window.innerHeight * 0.4)
       closeModal()
       await loadAssignments()
     } catch (err) {
@@ -218,78 +234,79 @@ export default function StudyTracker() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="nt-page max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+      <div className="nt-head">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Study Tracker</h1>
-          <p className="text-gray-600 mt-1">Keep track of your assignments and stay ahead.</p>
+          <h1 className="nt-title">
+            Study <span className="nt-title-hl">Tracker</span>
+          </h1>
+          <p className="nt-subtitle">Keep track of your assignments and stay ahead.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="nt-head-actions">
           <button
             onClick={loadAssignments}
-            className="p-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+            className="nt-btn nt-btn--icon"
             title="Refresh"
+            aria-label="Refresh"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-[#43A047] transition-colors"
-          >
-            <Plus className="w-5 h-5" />
+          <button onClick={openCreate} className="nt-btn nt-btn--yellow">
+            <Plus className="w-4 h-4" />
             Add Assignment
           </button>
         </div>
       </div>
 
+      {/* Momentum Track */}
+      {!loading && !error && (
+        <MomentumTrack
+          total={counts.total}
+          completed={counts.completed}
+          overdue={counts.overdue}
+        />
+      )}
+
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
-        <SummaryCard label="Total" value={counts.total} icon={ListTodo} tone="text-gray-700 bg-gray-50" />
-        <SummaryCard label="Pending" value={counts.pending} icon={Clock} tone="text-amber-700 bg-amber-50" />
-        <SummaryCard label="In Progress" value={counts.in_progress} icon={PlayCircle} tone="text-blue-700 bg-blue-50" />
-        <SummaryCard label="Completed" value={counts.completed} icon={CheckCircle2} tone="text-green-700 bg-green-50" />
-        <SummaryCard label="Overdue" value={counts.overdue} icon={AlertCircle} tone="text-red-700 bg-red-50" />
+      <div className="nt-stats">
+        <SummaryCard label="Total" value={counts.total} icon={ListTodo} variant="total" />
+        <SummaryCard label="Pending" value={counts.pending} icon={Clock} variant="pending" />
+        <SummaryCard label="In Progress" value={counts.in_progress} icon={PlayCircle} variant="progress" />
+        <SummaryCard label="Completed" value={counts.completed} icon={CheckCircle2} variant="completed" />
+        <SummaryCard label="Overdue" value={counts.overdue} icon={AlertCircle} variant="overdue" />
       </div>
 
       {/* Deadline awareness: mini calendar + next-up list */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-6">
+      <div className="nt-duo">
         <DeadlineCalendar assignments={assignments} />
         <UpcomingDeadlines assignments={assignments} isOverdue={isOverdue} />
       </div>
 
       {/* Filters + sort */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <div className="flex flex-wrap gap-2">
+      <div className="nt-toolbar">
+        <div className="nt-filters">
           {FILTERS.map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
-                filter === f
-                  ? 'bg-primary text-white border-primary'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-green-300 hover:text-green-700'
-              }`}
+              className={`nt-chip ${filter === f ? 'nt-chip--active' : ''}`}
             >
               {f === 'all' ? 'All' : STATUS_META[f].label}
-              {f !== 'all' && counts[f] > 0 && (
-                <span className={`ml-1.5 ${filter === f ? 'text-green-100' : 'text-gray-400'}`}>
-                  {counts[f]}
-                </span>
-              )}
+              {f !== 'all' && counts[f] > 0 && <span className="nt-chip-count">{counts[f]}</span>}
             </button>
           ))}
         </div>
-        <div className="relative self-start sm:self-auto">
+        <div className="nt-sort">
           <select
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
-            className="appearance-none bg-white border border-gray-200 rounded-lg pl-3 pr-9 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+            className="nt-select"
           >
             <option value="due_asc">Due date ↑</option>
             <option value="due_desc">Due date ↓</option>
           </select>
-          <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <ChevronDown className="nt-select-chevron" />
         </div>
       </div>
 
@@ -297,35 +314,31 @@ export default function StudyTracker() {
       {loading ? (
         <SkeletonList />
       ) : error ? (
-        <div className="bg-white rounded-xl border border-red-100 shadow-sm p-10 text-center">
-          <AlertCircle className="w-12 h-12 text-red-300 mx-auto mb-3" />
-          <h3 className="text-lg font-medium text-gray-900 mb-1">Something went wrong</h3>
-          <p className="text-gray-500 mb-4">{error}</p>
-          <button
-            onClick={loadAssignments}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-[#43A047] transition-colors"
-          >
+        <div className="nt-state">
+          <div className="nt-state-iconbox nt-state-iconbox--coral">
+            <AlertCircle />
+          </div>
+          <h3 className="nt-state-title">Something went wrong</h3>
+          <p className="nt-state-text">{error}</p>
+          <button onClick={loadAssignments} className="nt-btn nt-btn--yellow">
             <RefreshCw className="w-4 h-4" />
             Try again
           </button>
         </div>
       ) : assignments.length === 0 ? (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-100 text-center">
-          <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No assignments yet</h3>
-          <p className="text-gray-500 mb-5">Start by adding your first assignment</p>
-          <button
-            onClick={openCreate}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-[#43A047] transition-colors"
-          >
+        <div className="nt-state">
+          <div className="nt-state-iconbox nt-state-iconbox--green">
+            <BookOpen />
+          </div>
+          <h3 className="nt-state-title">No assignments yet</h3>
+          <p className="nt-state-text">Start by adding your first assignment</p>
+          <button onClick={openCreate} className="nt-btn nt-btn--yellow">
             <Plus className="w-4 h-4" />
             Add Assignment
           </button>
         </div>
       ) : visible.length === 0 ? (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-100 text-center">
-          <p className="text-gray-500">No assignments match this filter.</p>
-        </div>
+        <div className="nt-nomatch">No assignments match this filter.</div>
       ) : (
         <AssignmentTable
           rows={visible}
@@ -351,8 +364,8 @@ export default function StudyTracker() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-gray-900 text-white text-sm px-4 py-3 rounded-lg shadow-lg">
-          <Check className="w-4 h-4 text-green-400" />
+        <div className="nt-toast fixed bottom-6 right-6 z-50 flex items-center gap-2">
+          <Check className="w-4 h-4" />
           {toast}
         </div>
       )}
@@ -360,33 +373,30 @@ export default function StudyTracker() {
   )
 }
 
-function SummaryCard({ label, value, icon: Icon, tone }) {
+function SummaryCard({ label, value, icon: Icon, variant }) {
+  const shake = variant === 'overdue' && value > 0
   return (
-    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">{label}</p>
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${tone}`}>
-          <Icon className="w-4 h-4" />
-        </div>
-      </div>
-      <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
+    <div className={`nt-stat nt-stat--${variant}`}>
+      <Icon className={`nt-stat-icon ${shake ? 'nt-shake' : ''}`} />
+      <p className={`nt-stat-value ${shake ? 'nt-shake' : ''}`}>{value}</p>
+      <p className="nt-stat-label">{label}</p>
     </div>
   )
 }
 
 function SkeletonList() {
   return (
-    <div className="space-y-3">
+    <div className="nt-skel-list">
       {[...Array(4)].map((_, i) => (
-        <div key={i} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-          <div className="animate-pulse flex items-center gap-4">
-            <div className="h-5 w-5 bg-gray-100 rounded" />
-            <div className="flex-1 space-y-2">
-              <div className="h-4 bg-gray-100 rounded w-1/3" />
-              <div className="h-3 bg-gray-100 rounded w-1/5" />
+        <div key={i} className="nt-skel">
+          <div className="nt-skel-inner">
+            <div className="nt-skel-block nt-skel-ico" />
+            <div className="nt-skel-lines">
+              <div className="nt-skel-block nt-skel-line1" />
+              <div className="nt-skel-block nt-skel-line2" />
             </div>
-            <div className="h-6 w-20 bg-gray-100 rounded-full" />
-            <div className="h-6 w-16 bg-gray-100 rounded-full hidden sm:block" />
+            <div className="nt-skel-block nt-skel-pill1" />
+            <div className="nt-skel-block nt-skel-pill2" />
           </div>
         </div>
       ))}
@@ -397,115 +407,112 @@ function SkeletonList() {
 function AssignmentTable({ rows, isOverdue, onEdit, onDelete, onStatusChange, deletingId }) {
   return (
     <>
-      {/* Desktop table */}
-      <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-gray-500 border-b border-gray-100 bg-gray-50/50">
-              <th className="px-5 py-3 font-medium">Assignment</th>
-              <th className="px-5 py-3 font-medium">Subject</th>
-              <th className="px-5 py-3 font-medium">Due date</th>
-              <th className="px-5 py-3 font-medium">Priority</th>
-              <th className="px-5 py-3 font-medium">Status</th>
-              <th className="px-5 py-3 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {rows.map((a) => {
-              const overdue = isOverdue(a)
-              const meta = STATUS_META[a.status] || STATUS_META.pending
-              const prio = PRIORITY_META[a.priority] || PRIORITY_META.medium
-              return (
-                <tr key={a.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-5 py-4">
-                    <p className="font-medium text-gray-900">{a.title}</p>
-                    {a.description && (
-                      <p className="text-gray-500 text-xs mt-0.5 line-clamp-1">{a.description}</p>
-                    )}
-                  </td>
-                  <td className="px-5 py-4 text-gray-600">{a.subject || '—'}</td>
-                  <td className="px-5 py-4">
-                    <div className="flex flex-col gap-1">
-                      <span className={`inline-flex items-center gap-1.5 ${overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
-                        <CalendarDays className="w-4 h-4 text-gray-400" />
-                        {a.due_date ? formatDate(a.due_date) : '—'}
-                      </span>
-                      <DueCountdownBadge a={a} />
-                    </div>
-                  </td>
-                  <td className="px-5 py-4">
-                    <span className={`inline-block px-2.5 py-1 rounded-full border text-xs font-medium ${prio.classes}`}>
-                      {prio.label}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4">
-                    <StatusSelect a={a} meta={meta} onChange={onStatusChange} />
-                  </td>
-                  <td className="px-5 py-4 text-right whitespace-nowrap">
+      {/* Desktop: ARIA grid table (>=768px, shown/hidden via CSS) */}
+      <div className="nt-desk" role="table" aria-label="Assignments">
+        <div role="rowgroup">
+          <div role="row" className="nt-thead-row">
+            <div role="columnheader">Assignment</div>
+            <div role="columnheader">Subject</div>
+            <div role="columnheader">Due date</div>
+            <div role="columnheader">Priority</div>
+            <div role="columnheader">Status</div>
+            <div role="columnheader">Actions</div>
+          </div>
+        </div>
+        <div role="rowgroup">
+          {rows.map((a, i) => {
+            const overdue = isOverdue(a)
+            const prio = PRIORITY_META[a.priority] || PRIORITY_META.medium
+            return (
+              <div
+                key={a.id}
+                role="row"
+                className={`nt-row ${a.status === 'completed' ? 'nt-row--done' : ''}`}
+                style={{ '--i': Math.min(i, 10) }}
+              >
+                <div role="cell">
+                  <p className="nt-row-title">{a.title}</p>
+                  {a.description && <p className="nt-row-desc">{a.description}</p>}
+                </div>
+                <div role="cell" className="nt-row-subject">{a.subject || '—'}</div>
+                <div role="cell" className={`nt-date ${overdue ? 'nt-date--overdue' : ''}`}>
+                  <span className="nt-date-top">
+                    <CalendarDays />
+                    {a.due_date ? formatDate(a.due_date) : '—'}
+                  </span>
+                  <DueCountdownBadge a={a} />
+                </div>
+                <div role="cell">
+                  <span className={`nt-prio ${prio.tone}`}>{prio.label}</span>
+                </div>
+                <div role="cell">
+                  <StatusSelect a={a} onChange={onStatusChange} />
+                </div>
+                <div role="cell">
+                  <div className="nt-acts">
                     <button
                       onClick={() => onEdit(a)}
-                      className="p-2 text-gray-400 hover:text-primary-dark hover:bg-primary-soft rounded-lg transition-colors"
+                      className="nt-act nt-act--edit"
                       title="Edit"
+                      aria-label={`Edit ${a.title}`}
                     >
-                      <Pencil className="w-4 h-4" />
+                      <Pencil />
                     </button>
                     <button
                       onClick={() => onDelete(a)}
                       disabled={deletingId === a.id}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                      className="nt-act nt-act--delete"
                       title="Delete"
+                      aria-label={`Delete ${a.title}`}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 />
                     </button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
-      {/* Mobile cards */}
-      <div className="md:hidden space-y-3">
+      {/* Mobile cards (<768px, shown/hidden via CSS) */}
+      <div className="nt-mob">
         {rows.map((a) => {
-          const meta = STATUS_META[a.status] || STATUS_META.pending
           const prio = PRIORITY_META[a.priority] || PRIORITY_META.medium
           return (
-            <div key={a.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-medium text-gray-900">{a.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+            <div key={a.id} className="nt-mcard">
+              <div className="nt-mcard-top">
+                <div className="nt-mcard-main">
+                  <p className="nt-row-title">{a.title}</p>
+                  <p className="nt-mcard-meta">
                     {a.subject || 'No subject'} · Due {a.due_date ? formatDate(a.due_date) : '—'}
                   </p>
-                  <div className="mt-1.5">
+                  <div className="nt-mcard-cd">
                     <DueCountdownBadge a={a} />
                   </div>
                 </div>
-                <span className={`shrink-0 inline-block px-2.5 py-1 rounded-full border text-xs font-medium ${prio.classes}`}>
-                  {prio.label}
-                </span>
+                <span className={`nt-prio ${prio.tone}`}>{prio.label}</span>
               </div>
-              {a.description && (
-                <p className="text-sm text-gray-500 mt-2 line-clamp-2">{a.description}</p>
-              )}
-              <div className="flex items-center justify-between mt-3">
-                <StatusSelect a={a} meta={meta} onChange={onStatusChange} />
-                <div className="flex items-center gap-1">
+              {a.description && <p className="nt-row-desc nt-mcard-desc">{a.description}</p>}
+              <div className="nt-mcard-foot">
+                <StatusSelect a={a} onChange={onStatusChange} />
+                <div className="nt-acts">
                   <button
                     onClick={() => onEdit(a)}
-                    className="p-2 text-gray-400 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                    className="nt-act nt-act--edit"
                     title="Edit"
+                    aria-label={`Edit ${a.title}`}
                   >
-                    <Pencil className="w-4 h-4" />
+                    <Pencil />
                   </button>
                   <button
                     onClick={() => onDelete(a)}
                     disabled={deletingId === a.id}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                    className="nt-act nt-act--delete"
                     title="Delete"
+                    aria-label={`Delete ${a.title}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 />
                   </button>
                 </div>
               </div>
@@ -517,14 +524,28 @@ function AssignmentTable({ rows, isOverdue, onEdit, onDelete, onStatusChange, de
   )
 }
 
-function StatusSelect({ a, meta, onChange }) {
+function StatusSelect({ a, onChange }) {
+  const meta = STATUS_META[a.status] || STATUS_META.pending
   const Icon = meta.icon
+  const selectRef = useRef(null)
+
+  function handleChange(e) {
+    const value = e.target.value
+    if (value === 'completed' && a.status !== 'completed') {
+      const rect = selectRef.current?.getBoundingClientRect()
+      if (rect) fireConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2)
+    }
+    onChange(a, value)
+  }
+
   return (
-    <div className="relative inline-block">
+    <div className={`nt-statuswrap ${meta.tone}`}>
       <select
+        ref={selectRef}
         value={a.status}
-        onChange={(e) => onChange(a, e.target.value)}
-        className={`appearance-none pl-8 pr-7 py-1.5 rounded-full border text-xs font-medium bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-500 ${meta.classes}`}
+        onChange={handleChange}
+        className="nt-status"
+        aria-label={`Status of ${a.title}`}
       >
         {STATUS_OPTIONS.map((s) => (
           <option key={s} value={s}>
@@ -532,8 +553,8 @@ function StatusSelect({ a, meta, onChange }) {
           </option>
         ))}
       </select>
-      <Icon className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-      <ChevronDown className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+      <Icon className="nt-status-icon" />
+      <ChevronDown className="nt-status-chev" />
     </div>
   )
 }
@@ -550,8 +571,8 @@ function DueCountdownBadge({ a }) {
   })
   if (cd.state === 'none' || cd.state === 'completed') return null
   return (
-    <span className={`inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full border text-[11px] font-medium ${COUNTDOWN_META[cd.state]}`}>
-      <Clock className="w-3 h-3" />
+    <span className={`nt-cd ${NT_CD_TONE[cd.state] || 'nt-cd--plain'}`}>
+      <Clock className="nt-cd-icon" />
       {cd.label}
     </span>
   )
@@ -559,123 +580,203 @@ function DueCountdownBadge({ a }) {
 
 function AssignmentModal({ form, setForm, onClose, onSubmit, saving, editing }) {
   const today = new Date().toISOString().slice(0, 10)
+  const [titleError, setTitleError] = useState(false)
+  const titleRef = useRef(null)
+
+  function handleFormSubmit(e) {
+    if (!form.title.trim()) {
+      e.preventDefault()
+      setTitleError(true)
+      titleRef.current?.focus()
+      return
+    }
+    onSubmit(e)
+  }
+
+  const previewCd = dueCountdown({
+    dueKey: form.due_date || null,
+    completed: form.status === 'completed',
+  })
+  const prioBg =
+    { low: 'nt-pri-bg-low', medium: 'nt-pri-bg-medium', high: 'nt-pri-bg-high' }[form.priority] ||
+    'nt-pri-bg-medium'
+
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {editing ? 'Edit Assignment' : 'Add Assignment'}
+    <div className="nt-overlay" role="dialog" aria-modal="true">
+      <div className="nt-overlay-bg" onClick={onClose} />
+      <div className="nt-modal">
+        <div className="nt-peek">
+          <PeekMascot />
+        </div>
+        <div className="nt-modal-head">
+          <h2 className="nt-modal-title">
+            {editing ? 'Edit ' : 'Add '}
+            <span className="nt-hl-green">Assignment</span>
           </h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="nt-modal-x" aria-label="Close">
+            <X className="w-4 h-4" />
           </button>
         </div>
-        <form onSubmit={onSubmit} className="p-6 space-y-4">
+        <p className="nt-modal-sub">
+          {editing ? 'Tweak the details and save.' : 'Drop it in now. Future you will say thanks.'}
+        </p>
+
+        <div className="nt-preview" key={form.priority}>
+          <span className="nt-preview-badge">LIVE PREVIEW</span>
+          <span className={`nt-preview-icon ${prioBg}`}>
+            <BookOpen />
+          </span>
+          <span className="nt-preview-body">
+            <span className="nt-preview-title">{form.title || 'Your next assignment'}</span>
+            <span className="nt-preview-sub">
+              {form.subject || 'Subject'} · {form.due_date ? formatDate(form.due_date) : 'No due date'}
+            </span>
+          </span>
+          {previewCd.state !== 'none' && previewCd.state !== 'completed' && (
+            <span className={`nt-cd ${NT_CD_TONE[previewCd.state] || 'nt-cd--plain'}`}>
+              <Clock className="nt-cd-icon" />
+              {previewCd.label}
+            </span>
+          )}
+        </div>
+
+        <form onSubmit={handleFormSubmit} noValidate className="nt-form">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Title *</label>
+            <div className="nt-label-row">
+              <label htmlFor="nt-title" className="nt-label">Title *</label>
+              {titleError && (
+                <span className="nt-title-err" role="alert">Give it a title first</span>
+              )}
+            </div>
             <input
+              id="nt-title"
+              ref={titleRef}
               type="text"
               required
               value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              onChange={(e) => {
+                setForm({ ...form, title: e.target.value })
+                if (titleError) setTitleError(false)
+              }}
               placeholder="e.g. DS Lab Report 3"
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
+              className={`nt-input ${titleError ? 'nt-input--error' : ''}`}
             />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="nt-grid2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Subject</label>
+              <label htmlFor="nt-subject" className="nt-label">Subject</label>
               <input
+                id="nt-subject"
                 type="text"
                 value={form.subject}
                 onChange={(e) => setForm({ ...form, subject: e.target.value })}
                 placeholder="e.g. Data Structures"
-                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
+                className="nt-input"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Due date</label>
+              <label htmlFor="nt-due" className="nt-label">Due date</label>
               <input
+                id="nt-due"
                 type="date"
                 min={editing ? undefined : today}
                 value={form.due_date}
                 onChange={(e) => setForm({ ...form, due_date: e.target.value })}
-                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
+                className="nt-input"
               />
             </div>
-            <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Start date</label>
+            <div className="nt-span2">
+              <label htmlFor="nt-start" className="nt-label">Start date</label>
               <input
+                id="nt-start"
                 type="date"
                 value={form.start_date}
                 onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
+                className="nt-input"
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
+            <label htmlFor="nt-desc" className="nt-label">Description</label>
             <textarea
+              id="nt-desc"
               rows={3}
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Optional details…"
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition resize-none"
+              className="nt-input nt-input--area"
             />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="nt-grid2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Priority</label>
-              <select
-                value={form.priority}
-                onChange={(e) => setForm({ ...form, priority: e.target.value })}
-                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition cursor-pointer"
-              >
+              <span id="nt-priority-label" className="nt-label">Priority</span>
+              <div role="radiogroup" aria-labelledby="nt-priority-label" className="nt-tg">
                 {PRIORITY_OPTIONS.map((p) => (
-                  <option key={p} value={p}>
+                  <button
+                    key={p}
+                    type="button"
+                    role="radio"
+                    aria-checked={form.priority === p}
+                    onClick={() => setForm({ ...form, priority: p })}
+                    className={`nt-tg-btn nt-tg-${p} ${form.priority === p ? 'nt-tg-btn--sel' : ''}`}
+                  >
                     {PRIORITY_META[p].label}
-                  </option>
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
-              <select
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition cursor-pointer"
-              >
+              <span id="nt-status-label" className="nt-label">Status</span>
+              <div role="radiogroup" aria-labelledby="nt-status-label" className="nt-tg">
                 {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>
+                  <button
+                    key={s}
+                    type="button"
+                    role="radio"
+                    aria-checked={form.status === s}
+                    onClick={() => setForm({ ...form, status: s })}
+                    className={`nt-tg-btn nt-tg-${s} ${form.status === s ? 'nt-tg-btn--sel' : ''}`}
+                  >
                     {STATUS_META[s].label}
-                  </option>
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
           </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-            >
+          <div className="nt-modal-foot">
+            <button type="button" onClick={onClose} className="nt-cancel">
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-green-400 transition-colors"
+              className="nt-btn nt-btn--yellow nt-btn--submit"
             >
+              <Rocket className={`nt-rocket ${saving ? 'nt-rocket--fly' : ''}`} />
               {saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Assignment'}
             </button>
           </div>
         </form>
       </div>
     </div>
+  )
+}
+
+function PeekMascot() {
+  return (
+    <svg viewBox="0 0 56 40" width="56" height="40" aria-hidden="true">
+      <rect
+        x="4" y="12" width="48" height="40" rx="12"
+        fill="#fff" stroke="#111" strokeWidth="3" strokeLinejoin="round"
+      />
+      <g className="nt-peek-eyes">
+        <circle cx="19" cy="28" r="3" fill="#111" />
+        <circle cx="37" cy="28" r="3" fill="#111" />
+      </g>
+      <path d="M23 34 Q28 38 33 34" fill="none" stroke="#111" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M12 10 L12 16 Q28 22 44 16 L44 10Z" fill="#111" />
+      <polygon points="28,0 56,8 28,16 0,8" fill="#111" />
+    </svg>
   )
 }
 
@@ -724,20 +825,21 @@ function DeadlineCalendar({ assignments }) {
   }, [y, m])
 
   return (
-    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-      <div className="flex items-center gap-2 mb-3">
-        <CalendarDays className="w-4 h-4 text-gray-400" />
-        <p className="text-sm font-semibold text-gray-900">{CAL_MONTHS[m]} {y}</p>
+    <div className="nt-card">
+      <div className="nt-card-head">
+        <CalendarDays className="nt-card-icon" />
+        <span>{CAL_MONTHS[m]} {y}</span>
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="nt-cal-grid">
         {CAL_WEEKDAYS.map((w) => (
-          <div key={w} className="h-6 flex items-center justify-center text-[9px] text-gray-400 font-medium">{w}</div>
+          <div key={w} className="nt-cal-wd">{w}</div>
         ))}
         {weeks.flat().map((day, i) => {
-          if (!day) return <div key={`p${i}`} className="h-7" />
+          if (!day) return <div key={`p${i}`} className="nt-cal-day nt-cal-day--pad" aria-hidden="true" />
           const k = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
           const mark = dueByDay[day]
           const isToday = k === today
+          const todayCls = isToday ? `nt-cal-day--today ${mark ? '' : 'nt-cal-day--today-plain'}` : ''
           return (
             <div
               key={k}
@@ -750,23 +852,23 @@ function DeadlineCalendar({ assignments }) {
                       ? 'Today'
                       : undefined
               }
-              className={`h-7 rounded-md border flex items-center justify-center text-[11px] font-medium ${
+              className={`nt-cal-day ${
                 mark === 'overdue'
-                  ? 'bg-red-50 text-red-700 border-red-200'
+                  ? 'nt-cal-day--overdue'
                   : mark === 'due'
-                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                    : 'bg-white text-gray-500 border-gray-100'
-              } ${isToday ? 'ring-2 ring-primary/40' : ''}`}
+                    ? 'nt-cal-day--due'
+                    : ''
+              } ${todayCls}`}
             >
               {day}
             </div>
           )
         })}
       </div>
-      <div className="flex items-center gap-3 mt-3 text-[10px] text-gray-400">
-        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-200" /> Due</span>
-        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-100 border border-red-200" /> Overdue</span>
-        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-white border border-primary/60" /> Today</span>
+      <div className="nt-cal-legend">
+        <span className="nt-legend-item"><span className="nt-legend-swatch nt-legend-swatch--due" /> Due</span>
+        <span className="nt-legend-item"><span className="nt-legend-swatch nt-legend-swatch--overdue" /> Overdue</span>
+        <span className="nt-legend-item"><span className="nt-legend-swatch nt-legend-swatch--today" /> Today</span>
       </div>
     </div>
   )
@@ -784,22 +886,22 @@ function UpcomingDeadlines({ assignments }) {
   }, [assignments, today])
 
   return (
-    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 lg:col-span-2">
-      <div className="flex items-center gap-2 mb-3">
-        <Clock className="w-4 h-4 text-gray-400" />
-        <p className="text-sm font-semibold text-gray-900">Upcoming deadlines</p>
+    <div className="nt-card">
+      <div className="nt-card-head">
+        <Clock className="nt-card-icon" />
+        <span>Upcoming deadlines</span>
       </div>
       {upcoming.length === 0 ? (
-        <p className="text-sm text-gray-500 py-6 text-center">Nothing due — you're all caught up.</p>
+        <p className="nt-up-empty">Nothing due — you're all caught up.</p>
       ) : (
-        <div className="space-y-2">
+        <div className="nt-up-rows">
           {upcoming.map(({ a, cd }) => (
-            <div key={a.id} className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-gray-50">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{a.title}</p>
-                <p className="text-xs text-gray-400">{a.due_date ? formatDate(a.due_date) : ''}</p>
+            <div key={a.id} className="nt-up-row">
+              <div className="nt-up-info">
+                <p className="nt-up-title">{a.title}</p>
+                <p className="nt-up-date">{a.due_date ? formatDate(a.due_date) : ''}</p>
               </div>
-              <span className={`shrink-0 inline-block px-2.5 py-1 rounded-full border text-xs font-medium ${COUNTDOWN_META[cd.state]}`}>
+              <span className={`nt-cd ${NT_CD_TONE[cd.state] || 'nt-cd--plain'}`}>
                 {cd.label}
               </span>
             </div>

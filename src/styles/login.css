@@ -1,0 +1,548 @@
+/* ============================================================
+   Momentum — Login page "Lemon pop" NEOBRUTALIST styles
+   Everything is scoped under .login-neo with the ln- prefix
+   so nothing leaks to any other page.
+   Plain CSS only: hard offset shadows, 3px ink borders,
+   flat solid colours, no gradients, no blur.
+   ============================================================ */
+
+.login-neo {
+  /* Design tokens */
+  --bg: #fff3c4;   /* page lemon */
+  --p: #ffd93d;    /* brand yellow */
+  --pt: #111111;   /* text on brand */
+  --a1: #ff6b6b;   /* coral */
+  --a2: #4d96ff;   /* blue */
+  --a3: #6bcb77;   /* green */
+  --k: #111111;    /* ink / borders */
+  --paper: #ffffff;
+  --muted: #555555;
+  --ph: #6b6b6b;
+
+  min-height: 100vh;
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  overflow: auto;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--k);
+}
+
+/* ---------------- Main card ---------------- */
+.login-neo .ln-card {
+  position: relative;
+  width: min(1100px, 100%);
+  min-height: 660px;
+  border: 3px solid #111;
+  border-radius: 18px;
+  box-shadow: 10px 10px 0 #111;
+  background: var(--paper);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 0.95fr 1.05fr;
+  animation: ln-card-in 0.5s ease-out both;
+}
+
+/* Decorative sticker A — top-right of the card (not real data) */
+.login-neo .ln-sticker {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 3;
+  background: var(--a1);
+  border: 3px solid #111;
+  border-radius: 8px;
+  box-shadow: 3px 3px 0 #111;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #111;
+  pointer-events: none;
+  animation: ln-wobble 2.6s ease-in-out infinite;
+}
+
+/* ---------------- Left panel ---------------- */
+.login-neo .ln-left {
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  padding: 28px 40px 22px;
+  min-width: 0;
+}
+
+/* Entrance stagger for left-panel children (60ms steps) */
+.login-neo .ln-left > * {
+  animation: ln-child-in 0.5s ease-out both;
+}
+.login-neo .ln-left > *:nth-child(2) { animation-delay: 0.06s; }
+.login-neo .ln-left > *:nth-child(3) { animation-delay: 0.12s; }
+.login-neo .ln-left > *:nth-child(4) { animation-delay: 0.18s; }
+.login-neo .ln-left > *:nth-child(5) { animation-delay: 0.24s; }
+.login-neo .ln-left > *:nth-child(6) { animation-delay: 0.3s; }
+/* The error block appears on demand — it gets its own shake, not the entrance stagger */
+.login-neo .ln-left > .ln-error {
+  animation: ln-shake 0.4s ease both;
+}
+
+/* 1. Logo row */
+.login-neo .ln-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.login-neo .ln-logo-badge {
+  width: 38px;
+  height: 38px;
+  border: 3px solid #111;
+  border-radius: 10px;
+  background: var(--p);
+  box-shadow: 3px 3px 0 #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.login-neo .ln-logo-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--pt);
+}
+.login-neo .ln-logo-name {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #111;
+}
+
+/* 2. Heading block */
+.login-neo .ln-heading {
+  margin: 26px 0 16px;
+  text-align: left;
+}
+.login-neo .ln-title {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #111;
+}
+.login-neo .ln-highlight {
+  display: inline-block;
+  background: var(--a3);
+  padding: 0 8px;
+  border: 3px solid #111;
+  border-radius: 8px;
+  transform: rotate(-2deg);
+  color: #111;
+}
+.login-neo .ln-subtitle {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* 3. Role switch — two hard boxes */
+.login-neo .ln-switch {
+  display: flex;
+  gap: 12px;
+}
+.login-neo .ln-switch-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 6px;
+  border: 3px solid #111;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 3px 3px 0 #111;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #111;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.login-neo .ln-switch-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 #111;
+}
+.login-neo .ln-switch-btn--active {
+  background: var(--a1);
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 #111;
+}
+.login-neo .ln-switch-btn:focus-visible {
+  outline: 3px solid #111;
+  outline-offset: 2px;
+}
+.login-neo .ln-switch-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+/* 4. Form fields */
+.login-neo .ln-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.login-neo .ln-field {
+  display: flex;
+  flex-direction: column;
+}
+.login-neo .ln-label {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #111;
+  margin-bottom: 5px;
+}
+.login-neo .ln-password-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+.login-neo .ln-password-row .ln-label {
+  margin-bottom: 0;
+}
+.login-neo .ln-forgot {
+  font-size: 11px;
+  font-weight: 800;
+  color: #111;
+  text-decoration: underline;
+}
+.login-neo .ln-forgot:hover {
+  text-decoration-thickness: 3px;
+  text-decoration-color: var(--p);
+}
+.login-neo .ln-input-wrap {
+  position: relative;
+}
+.login-neo .ln-input-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 17px;
+  height: 17px;
+  color: #111;
+  pointer-events: none;
+}
+.login-neo .ln-input {
+  width: 100%;
+  height: 48px;
+  padding-left: 44px;
+  padding-right: 14px;
+  background: #ffffff;
+  border: 3px solid #111;
+  border-radius: 10px;
+  box-shadow: 3px 3px 0 #111;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111;
+  outline: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.login-neo .ln-input::placeholder {
+  color: var(--ph);
+  font-weight: 500;
+}
+.login-neo .ln-input:focus {
+  background: #fffbe0;
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 #111;
+}
+.login-neo .ln-input:-webkit-autofill,
+.login-neo .ln-input:-webkit-autofill:hover,
+.login-neo .ln-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #111;
+  -webkit-box-shadow: 3px 3px 0 #111, inset 0 0 0 1000px #fffbe0;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* 5. Error block */
+.login-neo .ln-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--a1);
+  border: 3px solid #111;
+  border-radius: 10px;
+  box-shadow: 3px 3px 0 #111;
+  color: #111;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 10px 14px;
+  animation: ln-shake 0.4s ease both;
+}
+.login-neo .ln-error-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* 6. Submit button */
+.login-neo .ln-submit {
+  width: 100%;
+  height: 52px;
+  margin-top: 18px;
+  border: 3px solid #111;
+  border-radius: 10px;
+  background: var(--p);
+  color: var(--pt);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 5px 5px 0 #111;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.login-neo .ln-submit:hover:not(:disabled) {
+  transform: translate(-2px, -2px);
+  box-shadow: 7px 7px 0 #111;
+}
+.login-neo .ln-submit:active:not(:disabled) {
+  transform: translate(4px, 4px);
+  box-shadow: 1px 1px 0 #111;
+}
+.login-neo .ln-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.login-neo .ln-submit:focus-visible {
+  outline: 3px solid #111;
+  outline-offset: 2px;
+}
+.login-neo .ln-arrow {
+  width: 16px;
+  height: 16px;
+}
+.login-neo .ln-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.login-neo .ln-spinner {
+  width: 16px;
+  height: 16px;
+  animation: ln-spin 1s linear infinite;
+}
+
+/* 7. Footer */
+.login-neo .ln-footer {
+  margin-top: auto;
+  padding-top: 14px;
+  text-align: center;
+}
+.login-neo .ln-footer-text {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.login-neo .ln-footer-link {
+  font-size: 13px;
+  font-weight: 800;
+  color: #111;
+  text-decoration: underline;
+  text-decoration-thickness: 3px;
+  text-decoration-color: var(--p);
+  text-underline-offset: 3px;
+}
+.login-neo .ln-footer-link:hover {
+  text-decoration-color: var(--a1);
+}
+
+/* ---------------- Right panel (IllustrationPanel) ---------------- */
+.login-neo .ln-right {
+  min-width: 0;
+}
+.login-neo .ln-illus {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  background: var(--p);
+  border-left: 3px solid #111;
+}
+.login-neo .ln-illus-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Shared SVG stroke */
+.login-neo .ln-illus .o {
+  stroke: #111;
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+/* SVG fill helpers (var() is not reliable in presentation attributes) */
+.login-neo .ln-illus .ln-f-p  { fill: var(--p); }
+.login-neo .ln-illus .ln-f-a1 { fill: var(--a1); }
+.login-neo .ln-illus .ln-f-a2 { fill: var(--a2); }
+.login-neo .ln-illus .ln-f-a3 { fill: var(--a3); }
+.login-neo .ln-illus .ln-f-w  { fill: #ffffff; }
+.login-neo .ln-illus .ln-f-k  { fill: #111111; }
+/* Overrides for specific elements */
+.login-neo .ln-illus .ln-second {
+  stroke: var(--a1);
+  stroke-width: 2.5;
+}
+.login-neo .ln-illus .ln-mouth {
+  stroke-width: 2.5;
+}
+
+/* SVG animation plumbing */
+.login-neo .ln-illus .ln-second {
+  transform-box: view-box;
+  transform-origin: 236px 112px;
+  animation: ln-spin 10s linear infinite;
+}
+.login-neo .ln-illus .ln-leaves {
+  transform-box: view-box;
+  transform-origin: 238px 240px;
+  animation: ln-sway 3s ease-in-out infinite;
+}
+.login-neo .ln-illus .ln-cat {
+  animation: ln-bob 2.4s ease-in-out infinite;
+}
+.login-neo .ln-illus .ln-sparkle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ln-spin 9s linear infinite;
+}
+
+/* Sticker B — top-left of the illustration */
+.login-neo .ln-sticker-b {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  z-index: 2;
+  background: #ffffff;
+  border: 3px solid #111;
+  border-radius: 8px;
+  box-shadow: 3px 3px 0 #111;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #111;
+  transform: rotate(3deg);
+  pointer-events: none;
+}
+
+/* Ticker marquee — pinned to the panel bottom */
+.login-neo .ln-ticker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #111;
+  color: #ffffff;
+  border-top: 3px solid #111;
+  padding: 9px 0;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  overflow: hidden;
+}
+.login-neo .ln-ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ln-marquee 14s linear infinite;
+}
+.login-neo .ln-ticker-track span {
+  white-space: nowrap;
+  padding-right: 24px;
+}
+
+/* ---------------- Keyframes ---------------- */
+@keyframes ln-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes ln-child-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes ln-wobble {
+  0%, 100% { transform: rotate(-7deg); }
+  50% { transform: rotate(-2deg); }
+}
+@keyframes ln-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+@keyframes ln-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes ln-sway {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+@keyframes ln-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes ln-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* ---------------- Responsive ---------------- */
+@media (max-width: 1023.98px) {
+  .login-neo .ln-right {
+    display: none;
+  }
+  .login-neo .ln-card {
+    grid-template-columns: 1fr;
+    width: min(460px, 100%);
+    min-height: auto;
+  }
+  .login-neo .ln-left {
+    padding: 26px 28px 20px;
+  }
+}
+
+/* ---------------- Reduced motion ---------------- */
+@media (prefers-reduced-motion: reduce) {
+  .login-neo,
+  .login-neo *,
+  .login-neo *::before,
+  .login-neo *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

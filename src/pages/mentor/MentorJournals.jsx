@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { dbService } from '../../services/dbService'
 import { formatDate } from '../../utils/mentorUtils'
@@ -91,7 +92,12 @@ export default function MentorJournals() {
       ) : (
         <div className="space-y-3">
           {entries.map((e) => (
-            <div key={e.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+            <Link
+              key={e.id}
+              to={`/mentor/journals/${e.id}`}
+              className="block bg-white rounded-xl border border-gray-100 shadow-sm p-5 cursor-pointer
+                         hover:border-gray-200 hover:shadow-md transition-all"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-9 h-9 bg-primary-soft rounded-full flex items-center justify-center shrink-0">
@@ -117,7 +123,7 @@ export default function MentorJournals() {
               <p className="text-sm text-gray-600 mt-3 whitespace-pre-wrap line-clamp-6">
                 {e.content}
               </p>
-            </div>
+            </Link>
           ))}
         </div>
       )}

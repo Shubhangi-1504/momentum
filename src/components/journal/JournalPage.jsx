@@ -5,18 +5,37 @@ import JournalNotebook from './JournalNotebook'
 import JournalSidebar from './JournalSidebar'
 import JournalEditor from './JournalEditor'
 import JournalCustomizeModal from './JournalCustomizeModal'
-import { Menu, RefreshCw, AlertCircle } from 'lucide-react'
+import { Menu, AlertCircle } from 'lucide-react'
+import '../../styles/neo-journal.css'
 
 // ============================================
 // JournalPage — orchestrates the two Journal states:
-//   1) LANDING  (JournalNotebook — the physical notebook, Reference 2)
-//   2) EDITOR   (JournalSidebar + JournalEditor, Reference 1)
-// Owns persistence: loads entries for the logged-in student, creates,
-// updates (with debounce autosave), stars, shares, deletes.
+//   1) LANDING  (JournalNotebook — the physical notebook)
+//   2) EDITOR   (JournalSidebar + JournalEditor)
+// Owns persistence: loadEntries, create/update/delete, autosave,
+// star/share/delete flows, customization, photo cleanup.
 // ============================================
 
+const SIDEBAR_PREF_KEY = 'momentum.journal.sidebarHidden'
+
+function readSidebarPref() {
+  try {
+    return window.localStorage.getItem(SIDEBAR_PREF_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+function writeSidebarPref(hidden) {
+  try {
+    if (hidden) window.localStorage.setItem(SIDEBAR_PREF_KEY, '1')
+    else window.localStorage.removeItem(SIDEBAR_PREF_KEY)
+  } catch {
+    // storage unavailable — preference just won't persist
+  }
+}
+
 export default function JournalPage() {
-  const { profile } = useAuth()
+  const { profile, user } = useAuth()
 
   const [view, setView] = useState('landing') // 'landing' | 'editor'
   const [studentId, setStudentId] = useState(null)
@@ -28,13 +47,18 @@ export default function JournalPage() {
 
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
-  const [sidebarOpen, setSidebarOpen] = useState(false) // mobile
+  const [sidebarOpen, setSidebarOpen] = useState(false) // mobile drawer
+  const [sidebarHidden, setSidebarHidden] = useState(readSidebarPref) // desktop pref
   const [customizeOpen, setCustomizeOpen] = useState(false)
 
   const [savingState, setSavingState] = useState('idle') // idle | saving | saved | error
   const saveTimer = useRef(null)
   const toastTimer = useRef(null)
   const dirtyRef = useRef(false)
+
+  // G1: stable editor key — the id at the moment the editor was opened.
+  // Does NOT flip when a NEW draft receives its id during the first save.
+  const [editorKey, setEditorKey] = useState('new-0')
 
   const showToast = useCallback((msg) => {
     setToast(msg)
@@ -75,7 +99,7 @@ export default function JournalPage() {
     return () => window.clearTimeout(t)
   }, [loadEntries])
 
-  // Clean up debounce timer on unmount
+  // Clean up timers on unmount
   useEffect(() => {
     return () => {
       if (saveTimer.current) window.clearTimeout(saveTimer.current)
@@ -100,11 +124,37 @@ export default function JournalPage() {
   const journalBackground = entries[0]?.background || 'botanical'
   const journalPaper = entries[0]?.paper_style || 'plain'
 
+  // ---------- saved image paths bookkeeping (for storage cleanup) ----------
+  const savedImagePathsRef = useRef(new Map()) // entryId -> [paths]
+  useEffect(() => {
+    for (const e of entries) {
+      if (Array.isArray(e.images)) savedImagePathsRef.current.set(e.id, e.images.map((i) => i.path))
+    }
+  }, [entries])
+
+  function cleanupRemovedImages(entryId, prevList, nextList) {
+    const removed = prevList.filter((p) => !nextList.includes(p))
+    if (removed.length) {
+      dbService.deleteJournalImages(removed).catch(() => {
+        // best-effort: ignore errors (entry may be mid-save)
+      })
+    }
+    savedImagePathsRef.current.set(entryId, nextList)
+  }
+
   // ---------- save pipeline ----------
+  const persistRef = useRef(null)
+  const createdIdRef = useRef(null)
+
   const persist = useCallback(
     async (draft, { isNew } = {}) => {
       setSavingState('saving')
       try {
+        // photos: include `images` only when the draft has photos or the
+        // loaded entry already carried an images property (pre-migration safe)
+        const hasImagesColumn =
+          (Array.isArray(draft.images) && draft.images.length > 0) ||
+          (draft.id != null && 'images' in draft)
         const payload = {
           title: draft.title?.trim() || null,
           content: draft.content ?? '',
@@ -113,7 +163,10 @@ export default function JournalPage() {
           is_starred: !!draft.is_starred,
           is_visible_to_mentor: !!draft.is_visible_to_mentor,
           journal_date: draft.journal_date || null,
+          ...(hasImagesColumn ? { images: Array.isArray(draft.images) ? draft.images : [] } : {}),
         }
+        const prevImages = draft.id ? savedImagePathsRef.current.get(draft.id) || [] : []
+
         if (isNew || !draft.id) {
           const { data, error } = await dbService.createJournalEntry({
             ...payload,
@@ -122,13 +175,20 @@ export default function JournalPage() {
             paper_style: draft.paper_style || journalPaper,
           })
           if (error) throw error
+          createdIdRef.current = data.id // captured for the G2 follow-up update
           setEntries((prev) => [data, ...prev])
           setActiveEntryId(data.id)
           setDraftNew(null)
+          if (Array.isArray(data.images)) {
+            savedImagePathsRef.current.set(data.id, data.images.map((i) => i.path))
+          }
         } else {
           const { data, error } = await dbService.updateJournalEntry(draft.id, payload)
           if (error) throw error
           setEntries((prev) => prev.map((e) => (e.id === data.id ? data : e)))
+          if (Array.isArray(data.images)) {
+            cleanupRemovedImages(data.id, prevImages, data.images.map((i) => i.path))
+          }
         }
         dirtyRef.current = false
         setSavingState('saved')
@@ -141,16 +201,22 @@ export default function JournalPage() {
     },
     [studentId, journalBackground, journalPaper, showToast]
   )
+  useEffect(() => {
+    persistRef.current = persist
+  }, [persist])
 
-  const scheduleSave = useCallback(
-    (draft) => {
-      dirtyRef.current = true
-      setSavingState('saving')
-      if (saveTimer.current) window.clearTimeout(saveTimer.current)
-      saveTimer.current = window.setTimeout(() => persist(draft, { isNew: !draft.id }), 900)
-    },
-    [persist]
-  )
+  // G2: guard concurrent creates. While a create request is in flight,
+  // remember the latest draft; when it finishes, UPDATE the new id with
+  // that draft instead of creating again.
+  const creatingRef = useRef(false)
+  const latestDraftRef = useRef(null)
+
+  const scheduleSave = useCallback((draft) => {
+    dirtyRef.current = true
+    setSavingState('saving')
+    if (saveTimer.current) window.clearTimeout(saveTimer.current)
+    saveTimer.current = window.setTimeout(() => persistRef.current?.(draft, { isNew: !draft.id }), 900)
+  }, [])
 
   const handleDraftChange = useCallback(
     (next) => {
@@ -159,30 +225,74 @@ export default function JournalPage() {
       } else {
         setDraftNew(next)
       }
+      if (creatingRef.current) {
+        // a create is in flight — remember the latest draft; the finished
+        // create is immediately followed by an update with it (G2)
+        latestDraftRef.current = next
+        return
+      }
       scheduleSave(next)
     },
     [scheduleSave]
   )
 
-  const handleSaveNow = useCallback(() => {
+  // Wrap persist to install the G2 guard WITHOUT modifying its logic.
+  const guardedPersist = useCallback(
+    async (draft, opts = {}) => {
+      if ((opts.isNew || !draft.id) && creatingRef.current) {
+        return // the running create will be followed by an update
+      }
+      if (opts.isNew || !draft.id) {
+        creatingRef.current = true
+        try {
+          const result = await persist(draft, opts)
+          creatingRef.current = false
+          // create finished — if the user typed during the request,
+          // immediately update the new row with the latest draft (G2)
+          const newId = createdIdRef.current
+          const latest = latestDraftRef.current
+          if (newId && latest && !latest.id) {
+            latestDraftRef.current = null
+            const merged = { ...latest, id: newId }
+            await persistRef.current?.(merged, { isNew: false })
+          }
+          return result
+        } catch (e) {
+          creatingRef.current = false
+          throw e
+        }
+      }
+      return persist(draft, opts)
+    },
+    [persist]
+  )
+  const guardedPersistRef = useRef(guardedPersist)
+  useEffect(() => {
+    guardedPersistRef.current = guardedPersist
+  }, [guardedPersist])
+
+  function handleSaveNow() {
     if (saveTimer.current) window.clearTimeout(saveTimer.current)
+    // reads the current render's draft directly (Save / Cmd+S)
     const draft = activeEntry || draftNew
     if (!draft) return
-    persist(draft, { isNew: !draft.id })
-  }, [activeEntry, draftNew, persist])
+    guardedPersistRef.current?.(draft, { isNew: !draft.id })
+  }
 
   // ---------- actions ----------
-  function startNewEntry() {
+  function startNewEntry(initialContent) {
     setActiveEntryId(null)
     setDraftNew({
       title: '',
-      content: '',
+      content: initialContent ? initialContent + '\n\n' : '',
       mood: null,
       tags: [],
+      images: [],
       is_starred: false,
       is_visible_to_mentor: false,
       journal_date: todayKey(),
     })
+    setEditorKey(`new-${Date.now()}`)
     setSavingState('idle')
     setView('editor')
     setSidebarOpen(false)
@@ -192,6 +302,7 @@ export default function JournalPage() {
     if (saveTimer.current) window.clearTimeout(saveTimer.current)
     setActiveEntryId(entry.id)
     setDraftNew(null)
+    setEditorKey(entry.id)
     setSavingState('idle')
     setView('editor')
     setSidebarOpen(false)
@@ -201,7 +312,7 @@ export default function JournalPage() {
     if (saveTimer.current) window.clearTimeout(saveTimer.current)
     // flush pending edits so the notebook stats stay accurate
     const draft = activeEntry || draftNew
-    if (dirtyRef.current && draft) persist(draft, { isNew: !draft.id })
+    if (dirtyRef.current && draft) guardedPersistRef.current?.(draft, { isNew: !draft.id })
     setView('landing')
   }
 
@@ -211,7 +322,7 @@ export default function JournalPage() {
     if (activeEntryId === entry.id) setSavingState('saving')
     const { error } = await dbService.updateJournalEntry(entry.id, { is_starred: next })
     if (error) {
-      showToast(error.message || 'Failed to update star')
+      showToast(error.message || 'Failed to update bookmark')
       setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, is_starred: entry.is_starred } : e)))
     } else if (activeEntryId === entry.id) {
       setSavingState('saved')
@@ -221,12 +332,12 @@ export default function JournalPage() {
 
   function handleNotebookPrivacy() {
     if (entries.length === 0) {
-      showToast('Your entries are private by default. Toggle the lock inside an entry to share it.')
+      showToast('Your journal is sealed. Toggle the wax seal inside an entry to share it.')
       return
     }
     setView('editor')
     setSidebarOpen(true)
-    showToast('Open an entry and click its lock icon to change sharing')
+    showToast('Open an entry and click its wax seal to change sharing')
   }
 
   function confirmDelete(entry) {
@@ -236,6 +347,7 @@ export default function JournalPage() {
   }
 
   async function doDelete(entry) {
+    const entryImages = Array.isArray(entry.images) ? entry.images.map((i) => i.path) : []
     // optimistic removal
     const prevEntries = entries
     setEntries((prev) => prev.filter((e) => e.id !== entry.id))
@@ -248,12 +360,17 @@ export default function JournalPage() {
       setEntries(prevEntries)
       showToast(error.message || 'Failed to delete entry')
     } else {
+      savedImagePathsRef.current.delete(entry.id)
+      if (entryImages.length) {
+        dbService.deleteJournalImages(entryImages).catch(() => {
+          // best-effort storage cleanup
+        })
+      }
       showToast('Entry deleted')
     }
   }
 
   // Customize: persists prefs on the most recent entry (journal-level default)
-  // so the whole notebook picks them up next load.
   async function applyCustomization({ background, paperStyle }) {
     setCustomizeOpen(false)
     const anchor = activeEntry || entries[0]
@@ -264,35 +381,53 @@ export default function JournalPage() {
     const updates = {}
     if (background) updates.background = background
     if (paperStyle) updates.paper_style = paperStyle
-    // optimistic
-    setEntries((prev) =>
-      prev.map((e) => (e.id === anchor.id ? { ...e, ...updates } : e))
-    )
+    setEntries((prev) => prev.map((e) => (e.id === anchor.id ? { ...e, ...updates } : e)))
     const { error } = await dbService.updateJournalEntry(anchor.id, updates)
     if (error) showToast(error.message || 'Failed to save customization')
     else showToast('Journal customized')
   }
 
+  // ---------- hide-sidebar plumbing ----------
+  function hideSidebar() {
+    setSidebarHidden(true)
+    writeSidebarPref(true)
+  }
+  function showSidebar() {
+    setSidebarHidden(false)
+    writeSidebarPref(false)
+  }
+  function openEntriesDrawer() {
+    setSidebarOpen(true)
+  }
+
   const starredCount = entries.filter((e) => e.is_starred).length
+  const entryDates = useMemo(
+    () => entries.map((e) => (e.journal_date || '').slice(0, 10)).filter(Boolean),
+    [entries]
+  )
 
   // ---------- render ----------
+
   if (loading && entries.length === 0 && !error) {
     return (
-      <div className="max-w-6xl mx-auto flex items-center justify-center min-h-[50vh]">
-        <RefreshCw className="w-6 h-6 animate-spin text-[#8a9b74]" />
+      <div className="nj-root nj-landing" style={{ background: '#ffd93d' }}>
+        <div className="nj-landing-inner">
+          <div className="nj-spinner" />
+        </div>
       </div>
     )
   }
 
   if (view === 'landing') {
     return (
-      <div className="-m-6">
+      <div className="nj-root nj-landing" data-sidebar={sidebarHidden ? 'hidden' : 'visible'}>
         <JournalNotebook
           firstName={firstName}
           entryCount={entries.length}
           starredCount={starredCount}
           background={journalBackground}
           isLockedDefault={!entries.some((e) => e.is_visible_to_mentor)}
+          entryDates={entryDates}
           onNewEntry={startNewEntry}
           onViewEntries={() => {
             setView('editor')
@@ -308,6 +443,7 @@ export default function JournalPage() {
           onApply={applyCustomization}
           onClose={() => setCustomizeOpen(false)}
         />
+        {toast && <div className="nj-toast">{toast}</div>}
       </div>
     )
   }
@@ -315,15 +451,15 @@ export default function JournalPage() {
   const editorEntry = activeEntry || draftNew
 
   return (
-    <div className="-m-6 flex flex-col lg:flex-row h-[calc(100vh-0px)] lg:h-screen overflow-hidden">
-      {/* Mobile top bar */}
-      <div className="lg:hidden flex items-center justify-between px-4 py-2.5 bg-white border-b border-[#e6e2d3]">
-        <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-lg hover:bg-[#f4f0e2]">
-          <Menu className="w-5 h-5 text-[#6f6754]" />
+    <div className="nj-root nj-editor" data-sidebar={sidebarHidden ? 'hidden' : 'visible'}>
+      {/* Mobile top bar (compact — G5) */}
+      <div className="nj-topbar">
+        <button className="nj-iconbtn" onClick={() => setSidebarOpen(true)} aria-label="Open entries">
+          <Menu width={16} height={16} />
         </button>
-        <span className="text-sm font-medium text-[#3d4232]">{firstName}&apos;s Journal</span>
-        <button onClick={backToNotebook} className="p-1.5 rounded-lg hover:bg-[#f4f0e2]">
-          <span className="text-xs text-[#5f7a4f] font-medium">Notebook</span>
+        <span className="nj-topbar-title">{firstName}&apos;s Journal</span>
+        <button className="nj-iconbtn" onClick={backToNotebook} title="Back to notebook" aria-label="Back to notebook">
+          <span style={{ fontSize: 10, fontWeight: 800 }}>NB</span>
         </button>
       </div>
 
@@ -336,30 +472,28 @@ export default function JournalPage() {
         onSearchChange={setSearch}
         activeEntryId={activeEntryId}
         onSelectEntry={openEntry}
-        onNewEntry={startNewEntry}
+        onNewEntry={() => startNewEntry()}
         onBackToNotebook={backToNotebook}
         onDeleteEntry={confirmDelete}
         onToggleStar={handleToggleStar}
         mobileOpen={sidebarOpen}
         onCloseMobile={() => setSidebarOpen(false)}
+        onHideSidebar={hideSidebar}
       />
 
       {error && !editorEntry ? (
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="text-center">
-            <AlertCircle className="w-10 h-10 mx-auto text-red-400 mb-3" />
-            <p className="text-sm text-gray-600">{error}</p>
-            <button
-              onClick={() => loadEntries()}
-              className="mt-3 px-4 py-2 text-sm rounded-lg bg-[#3f6b46] text-white hover:bg-[#355c3c]"
-            >
+        <div className="nj-editor-col" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ffd93d' }}>
+          <div className="nj-state-card">
+            <AlertCircle />
+            <p className="nj-error-text" style={{ margin: 0 }}>{error}</p>
+            <button className="nj-btn nj-btn--yellow" onClick={() => loadEntries()}>
               Try again
             </button>
           </div>
         </div>
       ) : editorEntry ? (
         <JournalEditor
-          key={editorEntry.id || 'new'}
+          key={editorKey}
           entry={editorEntry}
           paperStyle={editorEntry.paper_style || journalPaper}
           background={editorEntry.background || journalBackground}
@@ -367,17 +501,19 @@ export default function JournalPage() {
           onDraftChange={handleDraftChange}
           onSave={handleSaveNow}
           onCancel={backToNotebook}
-          onDelete={() => confirmDelete(editorEntry)}
+          onDelete={editorEntry.id ? () => confirmDelete(editorEntry) : null}
+          onToast={showToast}
+          sidebarHidden={sidebarHidden}
+          onOpenEntries={openEntriesDrawer}
+          onShowSidebar={showSidebar}
+          authUser={user ? { id: user.id } : profile ? { id: profile.id } : null}
         />
       ) : (
-        <div className="flex-1 flex items-center justify-center" style={{ background: 'linear-gradient(160deg, #eef0e2 0%, #dde6c9 100%)' }}>
-          <div className="text-center px-6">
-            <p className="font-serif text-xl text-[#3d4232] mb-2">Select an entry to read</p>
-            <p className="text-sm text-[#6f6754] mb-5">Or start a fresh page in your journal.</p>
-            <button
-              onClick={startNewEntry}
-              className="px-5 py-2.5 rounded-xl bg-[#3f6b46] text-white text-sm font-medium hover:bg-[#355c3c] transition-colors"
-            >
+        <div className="nj-editor-col" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ffd93d' }}>
+          <div className="nj-state-card">
+            <p className="nj-plate-title" style={{ fontSize: 20, margin: 0 }}>Select an entry to read</p>
+            <p style={{ margin: 0 }}>Or start a fresh page in your journal.</p>
+            <button className="nj-btn nj-btn--black" onClick={() => startNewEntry()}>
               + New Entry
             </button>
           </div>
@@ -392,12 +528,7 @@ export default function JournalPage() {
         onClose={() => setCustomizeOpen(false)}
       />
 
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-[#3d4232] text-white text-sm shadow-lg">
-          {toast}
-        </div>
-      )}
+      {toast && <div className="nj-toast">{toast}</div>}
     </div>
   )
 }

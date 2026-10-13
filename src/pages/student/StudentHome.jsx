@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { dbService } from '../../services/dbService'
-import HomeHeader from '../../components/home/HomeHeader'
 import WelcomeCard from '../../components/home/WelcomeCard'
 import StatsCards from '../../components/home/StatsCards'
 import TodaysFocus from '../../components/home/TodaysFocus'
-import QuickActions from '../../components/home/QuickActions'
-import MotivationCard from '../../components/home/MotivationCard'
 import { getGreeting, dateKey, startOfWeek } from '../../components/home/homeUtils'
 
 // ============================================
@@ -153,32 +150,22 @@ export default function StudentHome() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <HomeHeader />
-
       <WelcomeCard greeting={greeting} firstName={firstName} />
 
       <StatsCards stats={stats} loading={loading} error={error} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-2 min-w-0">
-          <TodaysFocus
-            tasks={focusTasks}
-            loading={loading}
-            error={error}
-            onCycleStatus={handleCycleStatus}
-          />
-        </div>
-        <div className="space-y-6 min-w-0">
-          <QuickActions />
-          <MotivationCard />
-        </div>
-      </div>
+      <TodaysFocus
+        tasks={focusTasks}
+        loading={loading}
+        error={error}
+        onCycleStatus={handleCycleStatus}
+      />
 
       {/* transient status toast (same pattern as Study Tracker) */}
       {toast && (
         <div
           role="status"
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg"
+          className="nh-toast fixed bottom-6 left-1/2 -translate-x-1/2 z-50"
         >
           {toast}
         </div>

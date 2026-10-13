@@ -1,10 +1,10 @@
 import { X, Check } from 'lucide-react'
-import { JOURNAL_BACKGROUNDS, JOURNAL_PAPERS, LEAF_TEXTURE } from './journalThemes'
+import { JOURNAL_BACKGROUNDS, JOURNAL_PAPERS } from './journalThemes'
 
 // ============================================
 // JournalCustomizeModal — "Customize" from the notebook.
 // Picks the landing-notebook background + editor paper style.
-// Persists via JournalPage (per-entry override or journal default).
+// Persists via JournalPage (keep onApply({ background, paperStyle })).
 // ============================================
 
 export default function JournalCustomizeModal({ open, background, paperStyle, onApply, onClose }) {
@@ -12,91 +12,74 @@ export default function JournalCustomizeModal({ open, background, paperStyle, on
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30"
+      className="nj-modal-overlay"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Customize journal"
     >
-      <div
-        className="w-full max-w-lg bg-[#fdfbf4] rounded-2xl shadow-2xl border border-[#e4dcc6] overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="nj-modal" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#eee9da]">
-          <div>
-            <h3 className="font-serif text-lg text-[#3d4232]">Customize your journal</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Backgrounds and paper stay light and cozy.</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:bg-[#f4f0e2] hover:text-gray-600 transition-colors"
-          >
-            <X className="w-5 h-5" />
+        <div className="nj-modal-head">
+          <h3 className="nj-modal-title">
+            Customize <span className="nj-modal-hl">Journal</span>
+          </h3>
+          <button type="button" className="nj-modal-close" onClick={onClose} aria-label="Close">
+            <X />
           </button>
         </div>
 
         {/* Backgrounds */}
-        <div className="px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#8b8271] mb-2">Background</p>
-          <div className="grid grid-cols-3 gap-2.5">
+        <div className="nj-modal-section">
+          <p className="nj-modal-label">Background</p>
+          <div className="nj-swatch-grid">
             {Object.entries(JOURNAL_BACKGROUNDS).map(([key, bg]) => (
               <button
                 key={key}
+                type="button"
+                className={`nj-swatch ${background === key ? 'nj-swatch--sel' : ''}`}
                 onClick={() => onApply({ background: key })}
-                className={`relative rounded-xl overflow-hidden border-2 transition-all
-                  ${background === key ? 'border-[#3f6b46] ring-2 ring-[#a8b48c]/50' : 'border-transparent hover:border-[#c9d4b4]'}`}
-                style={{ background: bg.swatch, height: 64 }}
               >
-                {key === 'botanical' && (
-                  <span
-                    className="absolute inset-0"
-                    style={{ backgroundImage: LEAF_TEXTURE, backgroundSize: 130 }}
-                  />
-                )}
-                <span className="absolute inset-x-0 bottom-0 text-[10px] py-0.5 bg-white/70 text-[#5f5a48]">
-                  {bg.label}
+                <span className="nj-swatch-tile" style={{ background: bg.chrome }}>
+                  <span className="nj-swatch-sheet" style={{ background: bg.paper }} />
                 </span>
-                {background === key && (
-                  <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#3f6b46] flex items-center justify-center">
-                    <Check className="w-3 h-3 text-white" />
-                  </span>
-                )}
+                <span className="nj-swatch-name">{bg.label}</span>
               </button>
             ))}
           </div>
         </div>
 
         {/* Paper styles */}
-        <div className="px-5 pb-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#8b8271] mb-2">Paper Style</p>
-          <div className="grid grid-cols-4 gap-2.5">
+        <div className="nj-modal-section">
+          <p className="nj-modal-label">Paper</p>
+          <div className="nj-paper-grid">
             {Object.entries(JOURNAL_PAPERS).map(([key, paper]) => (
               <button
                 key={key}
+                type="button"
+                className={`nj-swatch ${paperStyle === key ? 'nj-swatch--sel' : ''}`}
                 onClick={() => onApply({ paperStyle: key })}
-                className={`relative rounded-xl overflow-hidden border-2 transition-all
-                  ${paperStyle === key ? 'border-[#3f6b46] ring-2 ring-[#a8b48c]/50' : 'border-transparent hover:border-[#c9d4b4]'}`}
-                style={{ height: 64 }}
               >
-                <PaperPreview styleKey={key} />
-                <span className="absolute inset-x-0 bottom-0 text-[10px] py-0.5 bg-white/75 text-[#5f5a48]">
-                  {paper.label}
+                <span
+                  className="nj-swatch-tile"
+                  style={{ aspectRatio: '1 / 1', background: paper.swatch || '#fdfcf8' }}
+                >
+                  <PaperPreview styleKey={key} />
                 </span>
-                {paperStyle === key && (
-                  <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#3f6b46] flex items-center justify-center">
-                    <Check className="w-3 h-3 text-white" />
-                  </span>
-                )}
+                <span className="nj-swatch-name">{paper.label}</span>
               </button>
             ))}
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-[#eee9da] bg-[#fbf8f0]/70 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm rounded-lg bg-[#3f6b46] text-white font-medium hover:bg-[#355c3c] transition-colors"
-          >
-            Done
+        <div className="nj-modal-foot">
+          <button type="button" className="nj-modal-cancel" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="nj-btn nj-modal-apply nj-btn--yellow" onClick={() => onApply({ background, paperStyle })}>
+            <Check />
+            Apply
           </button>
         </div>
       </div>
@@ -105,15 +88,13 @@ export default function JournalCustomizeModal({ open, background, paperStyle, on
 }
 
 function PaperPreview({ styleKey }) {
-  const base = { height: '100%', backgroundColor: '#fbf8f0' }
   if (styleKey === 'lined') {
     return (
       <span
-        className="block"
+        className="nj-swatch-paper"
         style={{
-          ...base,
-          backgroundImage:
-            "repeating-linear-gradient(to bottom, transparent 0 7px, rgba(150,160,120,0.4) 7px 8px)",
+          backgroundImage: 'repeating-linear-gradient(to bottom, transparent 0 7px, rgba(17,17,17,.3) 7px 9px)',
+          backgroundSize: '100% 9px',
         }}
       />
     )
@@ -121,11 +102,10 @@ function PaperPreview({ styleKey }) {
   if (styleKey === 'dotted') {
     return (
       <span
-        className="block"
+        className="nj-swatch-paper"
         style={{
-          ...base,
-          backgroundImage: 'radial-gradient(rgba(150,160,120,0.5) 1px, transparent 1px)',
-          backgroundSize: '7px 7px',
+          backgroundImage: 'radial-gradient(rgba(17,17,17,.4) 1px, transparent 1.1px)',
+          backgroundSize: '8px 8px',
         }}
       />
     )
@@ -133,15 +113,14 @@ function PaperPreview({ styleKey }) {
   if (styleKey === 'textured') {
     return (
       <span
-        className="block"
+        className="nj-swatch-paper"
         style={{
-          ...base,
           backgroundColor: '#f9f4e8',
           backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.48 0 0 0 0 0.38 0 0 0 0.08 0'/%3E%3C/filter%3E%3Crect width='60' height='60' filter='url(%23n)'/%3E%3C/svg%3E\")",
+            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.48 0 0 0 0 0.38 0 0 0 0.08 0'/%3E%3C/filter%3E%3Crect width='40' height='40' filter='url(%23n)'/%3E%3C/svg%3E\")",
         }}
       />
     )
   }
-  return <span className="block" style={base} />
+  return <span className="nj-swatch-paper" />
 }

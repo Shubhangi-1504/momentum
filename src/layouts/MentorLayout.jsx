@@ -8,6 +8,7 @@ import {
   MessageSquare,
   BookOpen,
   MessagesSquare,
+  StickyNote,
   LogOut,
   Menu,
   X,
@@ -21,6 +22,7 @@ const navigation = [
   { name: 'Mentor Remarks', href: '/mentor/remarks', icon: MessageSquare },
   { name: 'Shared Journals', href: '/mentor/journals', icon: BookOpen },
   { name: 'Chat', href: '/mentor/chat', icon: MessagesSquare },
+  { name: 'Notes', href: '/mentor/notes', icon: StickyNote },
 ]
 
 export default function MentorLayout() {

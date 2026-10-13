@@ -1,12 +1,14 @@
 import {
-  Star, Lock, Unlock, Calendar, MoreHorizontal, Lightbulb, Hourglass, Tag,
-  Image as ImageIcon, Bold, Italic, Underline, Link2, Maximize2,
+  Calendar, CloudCheck, Pencil, Check, Smile, Tag, ImagePlus,
+  Bold, Italic, Underline, Link2, Maximize2, Trash2,
 } from 'lucide-react'
 import { JOURNAL_MOODS } from './journalThemes'
 
 // ============================================
-// JournalToolbar — icon strip inside the editor header (Reference 1).
-// Formatting actions apply to the current textarea selection.
+// JournalToolbar — the neo toolbar row + date/title header.
+// Formatting buttons apply to the textarea selection. The old
+// "coming soon" buttons and the star/lock buttons (now ribbon
+// and seal) are gone.
 // ============================================
 
 export default function JournalToolbar({
@@ -14,129 +16,170 @@ export default function JournalToolbar({
   wordCount,
   savingState, // 'idle' | 'saving' | 'saved' | 'error'
   onDateChange,
+  onTitleChange,
   onOpenMood,
   onOpenTags,
-  onToggleStar,
-  onToggleLock,
   onWrapSelection,
   onFullscreen,
+  onPhoto,
+  onDelete,
   toolbarRef,
 }) {
-  const starred = !!entry?.is_starred
-  const shared = !!entry?.is_visible_to_mentor
   const mood = JOURNAL_MOODS.find((m) => m.id === entry?.mood)
+  const MoodIcon = mood?.icon || Smile
 
   return (
-    <div
-      ref={toolbarRef}
-      className="flex items-center justify-between gap-2 px-4 py-2 border-b border-[#eee9da] bg-[#fbf8f0]/60"
-    >
-      {/* Left: date + words */}
-      <div className="flex items-center gap-2 min-w-0">
-        <label
-          className="hidden sm:flex items-center gap-1.5 text-xs text-[#6f6754] whitespace-nowrap cursor-pointer"
-          title="Entry date"
-        >
-          <Calendar className="w-3.5 h-3.5" />
-          <input
-            type="date"
-            value={dateInputValue(entry?.journal_date || entry?.created_at)}
-            onChange={(e) => onDateChange?.(e.target.value)}
-            className="bg-transparent text-xs text-[#6f6754] focus:outline-none cursor-pointer
-                       [color-scheme:light] w-[7.5rem]"
-          />
-        </label>
-        <span className="w-px h-4 bg-[#e6e2d3]" />
-        <span className="text-xs text-[#6f6754] whitespace-nowrap">{wordCount} words</span>
-        {savingState === 'saving' && (
-          <span className="flex items-center gap-1 text-xs text-[#8a9b74] italic whitespace-nowrap">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#8a9b74] animate-pulse" />
-            Saving…
-          </span>
-        )}
-        {savingState === 'saved' && (
-          <span className="flex items-center gap-1 text-xs text-[#3f6b46] whitespace-nowrap">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#3f6b46]" />
-            Saved
-          </span>
-        )}
-        {savingState === 'error' && (
-          <span className="text-xs text-red-600 whitespace-nowrap">Save failed</span>
-        )}
+    <>
+      {/* date line */}
+      <label className="nj-date-label" title="Entry date">
+        <Calendar />
+        <span className="nj-date-line">{friendlyDate(entry?.journal_date || entry?.created_at)}</span>
+        <input
+          type="date"
+          className="nj-date-input"
+          aria-label="Entry date"
+          value={dateInputValue(entry?.journal_date || entry?.created_at)}
+          onChange={(e) => onDateChange?.(e.target.value)}
+          onClick={(e) => {
+            try {
+              e.target.showPicker?.()
+            } catch {
+              e.target.focus?.()
+            }
+          }}
+        />
+      </label>
+
+      {/* title */}
+      <input
+        className="nj-title-input"
+        value={entry?.title || ''}
+        onChange={(e) => onTitleChange?.(e.target.value)}
+        placeholder="Entry title…"
+        aria-label="Entry title"
+      />
+
+      {/* feather divider */}
+      <div className="nj-feather">
+        <span className="nj-feather-line" />
+        <Feather />
+        <span className="nj-feather-line" />
       </div>
 
-      {/* Right: actions */}
-      <div className="flex items-center gap-0.5 text-[#6f6754]">
-        <ToolbarButton title="Mood / reflection" icon={Lightbulb} onClick={onOpenMood} active={!!mood}>
-          {mood && <span className="text-[11px] ml-0.5">{mood.emoji}</span>}
+      {/* toolbar row */}
+      <div className="nj-toolbar" ref={toolbarRef}>
+        <span className="nj-pill nj-pill-saving-state">
+          {savingState === 'saving' && (
+            <>
+              <Pencil /> Saving…
+            </>
+          )}
+          {savingState === 'saved' && (
+            <>
+              <Check /> Saved
+            </>
+          )}
+          {savingState === 'error' && <>Save failed</>}
+          {savingState === 'idle' && (
+            <>
+              <CloudCheck /> Autosave on
+            </>
+          )}
+        </span>
+        <span className="nj-pill">{wordCount} words</span>
+        <span className="nj-toolbar-spacer" />
+
+        <ToolbarButton title="Mood" onClick={onOpenMood} active={!!mood}>
+          <MoodIcon />
         </ToolbarButton>
-        <ToolbarButton title="Reminder (coming soon)" icon={Hourglass} disabled />
-        <ToolbarButton title="Tags" icon={Tag} onClick={onOpenTags} />
-        <ToolbarButton title="Attach image (coming soon)" icon={ImageIcon} disabled />
-        <span className="w-px h-4 bg-[#e6e2d3] mx-1" />
-        <ToolbarButton title="Bold" icon={Bold} onClick={() => onWrapSelection('**')} />
-        <ToolbarButton title="Italic" icon={Italic} onClick={() => onWrapSelection('*')} />
-        <ToolbarButton title="Underline" icon={Underline} onClick={() => onWrapSelection('_')} />
+        <ToolbarButton title="Tags" onClick={onOpenTags}>
+          <Tag />
+        </ToolbarButton>
+        <ToolbarButton title="Photo" onClick={onPhoto}>
+          <ImagePlus />
+        </ToolbarButton>
+        <span className="nj-toolbar-sep" />
+        <ToolbarButton title="Bold" onClick={() => onWrapSelection('**')}>
+          <Bold />
+        </ToolbarButton>
+        <ToolbarButton title="Italic" onClick={() => onWrapSelection('*')}>
+          <Italic />
+        </ToolbarButton>
+        <ToolbarButton title="Underline" onClick={() => onWrapSelection('_')}>
+          <Underline />
+        </ToolbarButton>
         <ToolbarButton
-          title="Insert link"
-          icon={Link2}
+          title="Link"
           onClick={() => {
             const url = window.prompt('Link URL:')
             if (url) onWrapSelection('', '', `[link](${url})`)
           }}
-        />
-        <span className="w-px h-4 bg-[#e6e2d3] mx-1" />
-        <ToolbarButton
-          title={starred ? 'Unstar entry' : 'Star entry'}
-          onClick={onToggleStar}
-          active={starred}
         >
-          <Star className={`w-4 h-4 ${starred ? 'fill-amber-400 text-amber-500' : ''}`} />
-        </ToolbarButton>
-        <ToolbarButton
-          title={shared ? 'Shared with mentor — click to make private' : 'Private — click to share with mentor'}
-          onClick={onToggleLock}
-          active={shared}
-        >
-          {shared ? <Unlock className="w-4 h-4 text-emerald-600" /> : <Lock className="w-4 h-4" />}
+          <Link2 />
         </ToolbarButton>
         <ToolbarButton title="Fullscreen" onClick={onFullscreen}>
-          <Maximize2 className="w-4 h-4" />
+          <Maximize2 />
         </ToolbarButton>
-        <ToolbarButton title="More options (coming soon)" icon={MoreHorizontal} disabled />
+        {onDelete && (
+          <ToolbarButton title="Delete entry" onClick={onDelete}>
+            <Trash2 />
+          </ToolbarButton>
+        )}
       </div>
-    </div>
+    </>
   )
 }
 
-function ToolbarButton({ icon: Icon, title, onClick, active, disabled, children }) {
+// --- inline Feather component (local icon box) ---
+function Feather() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
+      <path d="M16 8 2 22" />
+      <path d="M17.5 15H9" />
+    </svg>
+  )
+}
+
+function ToolbarButton({ title, onClick, active, children }) {
   return (
     <button
       type="button"
       title={title}
+      aria-label={title}
       onClick={onClick}
-      disabled={disabled}
-      className={`p-1.5 rounded-md transition-colors focus:outline-none
-        ${active ? 'bg-[#eef2e6] text-[#3f6b46]' : 'hover:bg-[#f0ecdd]'}
-        ${disabled ? 'opacity-35 cursor-not-allowed' : 'cursor-pointer'}`}
+      className={`nj-iconbtn ${active ? 'nj-iconbtn--active' : ''}`}
     >
-      {children || (Icon ? <Icon className="w-4 h-4" /> : null)}
+      {children}
     </button>
   )
+}
+
+function friendlyDate(value) {
+  if (!value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
 function dateInputValue(value) {
   if (!value) return todayKey()
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return todayKey()
+  return keyOf(d)
+}
+
+function keyOf(d) {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${d.getFullYear()}-${m}-${day}`
 }
 
 function todayKey() {
-  const d = new Date()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
+  return keyOf(new Date())
 }

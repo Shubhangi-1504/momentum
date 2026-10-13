@@ -1,13 +1,19 @@
-import { Search, Plus, List, Star, Lock, Unlock, Trash2, ArrowLeft, BookOpen, X } from 'lucide-react'
+import {
+  Search, Plus, Star, Lock, LockOpen, Trash2, ArrowLeft, X,
+  PanelLeftClose, Camera,
+} from 'lucide-react'
 import { moodMeta } from './journalThemes'
 
 // ============================================
-// JournalSidebar — secondary journal navigation (Reference 1, left column).
-// Search + actions + chronological/starred entry list.
+// JournalSidebar — 220px cream column beside the editor.
+// Search + filter chips + mood-this-week + entry cards.
+// On <1024px it becomes a fixed drawer (classes from neo-journal.css).
+// NEW props: onHideSidebar (desktop collapse), photoCount via entry.images.
 // ============================================
 
+const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
 export default function JournalSidebar({
-  firstName = 'Student',
   entries = [],
   filter = 'all', // 'all' | 'starred'
   onFilterChange,
@@ -21,6 +27,7 @@ export default function JournalSidebar({
   onToggleStar,
   mobileOpen,
   onCloseMobile,
+  onHideSidebar,
 }) {
   const query = search.trim().toLowerCase()
   const visible = entries.filter((e) => {
@@ -33,117 +40,120 @@ export default function JournalSidebar({
       tags.toLowerCase().includes(query)
     )
   })
+  const starredCount = entries.filter((e) => e.is_starred).length
+
+  // last 7 local days: most recent entry with a mood per day
+  const moodWeek = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() - (6 - i))
+    const key = dateKeyOf(d)
+    const dayEntries = entries
+      .filter((e) => (e.journal_date || '').slice(0, 10) === key && e.mood)
+      .sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''))
+    return { key, initial: WEEKDAY_INITIALS[d.getDay()], mood: dayEntries[0]?.mood || null }
+  })
 
   return (
     <>
-      {/* Mobile backdrop */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 bg-black/30 z-30 lg:hidden"
-          onClick={onCloseMobile}
-        />
-      )}
+      {/* Drawer backdrop (mobile/tablet only — CSS hides it on desktop) */}
+      {mobileOpen && <div className="nj-backdrop" onClick={onCloseMobile} />}
 
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-40 w-72 shrink-0 bg-white border-r border-[#e6e2d3]
-                    transform transition-transform duration-200 lg:translate-x-0 flex flex-col
-                    ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`nj-sidebar nj-drawer ${mobileOpen ? 'nj-open' : ''}`}
+        aria-label="Journal entries"
       >
         {/* Header */}
-        <div className="px-4 pt-4 pb-3 border-b border-[#eee9da]">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={onBackToNotebook}
-              className="flex items-center gap-1.5 text-sm font-medium text-[#5f7a4f] hover:text-[#3f6b46] transition-colors"
-              title="Back to notebook"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              {firstName}&apos;s Journal
+        <div className="nj-side-head">
+          <button type="button" className="nj-side-back" onClick={onBackToNotebook} title="Back to notebook">
+            <ArrowLeft width={16} height={16} />
+            Journal
+          </button>
+          {onHideSidebar && (
+            <button type="button" className="nj-iconbtn nj-mobile-hidden" onClick={onHideSidebar} title="Hide entries">
+              <PanelLeftClose width={15} height={15} />
             </button>
-            <button
-              onClick={onCloseMobile}
-              className="lg:hidden p-1 rounded hover:bg-[#f4f0e2] text-gray-500"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Search */}
-          <div className="relative mt-3">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search journal..."
-              className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-[#e6e2d3]
-                         bg-[#fbf9f2] placeholder-gray-400 text-gray-700
-                         focus:outline-none focus:ring-2 focus:ring-[#a8b48c]/40 focus:border-[#a8b48c]"
-            />
-          </div>
-
-          {/* Primary actions */}
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
-              onClick={onNewEntry}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg
-                         bg-[#3f6b46] text-white text-sm font-medium hover:bg-[#355c3c] transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              New Entry
-            </button>
-            <button
-              onClick={() => onFilterChange('all')}
-              className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filter === 'all'
-                  ? 'bg-[#eef2e6] text-[#3f6b46] border border-[#c9d4b4]'
-                  : 'text-gray-600 border border-[#e6e2d3] hover:bg-[#f4f0e2]'
-              }`}
-            >
-              <List className="w-4 h-4" />
-              All Entries
-            </button>
-          </div>
-          <button
-            onClick={() => onFilterChange(filter === 'starred' ? 'all' : 'starred')}
-            className={`mt-2 w-full flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              filter === 'starred'
-                ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                : 'text-gray-600 border border-[#e6e2d3] hover:bg-[#f4f0e2]'
-            }`}
-          >
-            <Star className={`w-4 h-4 ${filter === 'starred' ? 'fill-amber-400 text-amber-500' : ''}`} />
-            Starred Entries
+          )}
+          <button type="button" className="nj-iconbtn nj-mobile-only" onClick={onCloseMobile} aria-label="Close entries">
+            <X width={15} height={15} />
           </button>
         </div>
 
+        {/* Search */}
+        <div className="nj-side-search">
+          <Search />
+          <input
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search journal..."
+            aria-label="Search journal"
+          />
+        </div>
+
+        {/* Filter chips */}
+        <div className="nj-chips">
+          <button
+            type="button"
+            className={`nj-chip ${filter === 'all' ? 'nj-chip--on' : ''}`}
+            onClick={() => onFilterChange('all')}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            className={`nj-chip ${filter === 'starred' ? 'nj-chip--on' : ''}`}
+            onClick={() => onFilterChange('starred')}
+          >
+            <Star />&nbsp;{starredCount}
+          </button>
+        </div>
+
+        {/* MOOD THIS WEEK */}
+        <div className="nj-moodweek">
+          <p className="nj-moodweek-label">MOOD THIS WEEK</p>
+          <div className="nj-moodweek-row">
+            {moodWeek.map((d) => {
+              const meta = moodMeta(d.mood)
+              const Icon = meta?.icon
+              return (
+                <div
+                  key={d.key}
+                  className="nj-mood-day"
+                  style={meta ? { background: meta.hex } : undefined}
+                  title={`${d.initial}${meta ? ` · ${meta.label}` : ''}`}
+                >
+                  {Icon && <Icon />}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* New Entry */}
+        <button type="button" className="nj-btn nj-side-new nj-btn--black" onClick={onNewEntry}>
+          <Plus />
+          New Entry
+        </button>
+
         {/* Entry list */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="nj-list nj-card--stagger">
           {visible.length === 0 ? (
-            <div className="px-6 py-12 text-center">
-              <BookOpen className="w-10 h-10 mx-auto text-[#c9c2ad] mb-3" strokeWidth={1.5} />
-              <p className="text-sm text-gray-500">
-                {query ? 'No entries found.' : 'Your journal is empty.'}
-              </p>
-              {!query && (
-                <p className="text-xs text-gray-400 mt-1">
-                  Click “New Entry” to write your first page.
-                </p>
-              )}
-            </div>
+            <p className="nj-list-empty">
+              {query ? 'No entries match your search.' : 'Your journal is empty. Write your first page!'}
+            </p>
           ) : (
-            <ul className="divide-y divide-[#f0ebdd]">
-              {visible.map((entry) => (
-                <li key={entry.id}>
-                  <EntryRow
-                    entry={entry}
-                    active={entry.id === activeEntryId}
-                    onClick={() => onSelectEntry(entry)}
-                    onDelete={() => onDeleteEntry(entry)}
-                    onToggleStar={() => onToggleStar(entry)}
-                  />
-                </li>
-              ))}
-            </ul>
+            visible.map((entry) => (
+              <EntryCard
+                key={entry.id}
+                entry={entry}
+                active={entry.id === activeEntryId}
+                onClick={() => {
+                  onSelectEntry(entry)
+                  onCloseMobile?.()
+                }}
+                onDelete={() => onDeleteEntry(entry)}
+                onToggleStar={() => onToggleStar(entry)}
+              />
+            ))
           )}
         </div>
       </aside>
@@ -151,12 +161,17 @@ export default function JournalSidebar({
   )
 }
 
-function EntryRow({ entry, active, onClick, onDelete, onToggleStar }) {
-  const mood = moodMeta(entry.mood)
+// ---------- entry card ----------
+function EntryCard({ entry, active, onClick, onDelete, onToggleStar }) {
+  const meta = moodMeta(entry.mood)
+  const MoodIcon = meta?.icon
+  const photoCount = Array.isArray(entry.images) ? entry.images.length : 0
+
   return (
     <div
       role="button"
       tabIndex={0}
+      className={`nj-card ${active ? 'nj-card--active' : ''}`}
       onClick={onClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -164,53 +179,59 @@ function EntryRow({ entry, active, onClick, onDelete, onToggleStar }) {
           onClick()
         }
       }}
-      className={`group relative px-4 py-3 cursor-pointer transition-colors ${
-        active ? 'bg-[#eef2e6] border-l-2 border-[#3f6b46]' : 'hover:bg-[#f7f4ea] border-l-2 border-transparent'
-      }`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h4 className={`text-sm font-medium truncate ${active ? 'text-[#2f4a33]' : 'text-gray-800'}`}>
-            {entry.title || 'Untitled entry'}
-          </h4>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-xs text-gray-500">{formatEntryDate(entry.journal_date || entry.created_at)}</span>
-            {entry.is_visible_to_mentor ? (
-              <Unlock className="w-3 h-3 text-emerald-600" title="Shared with mentor" />
-            ) : (
-              <Lock className="w-3 h-3 text-gray-400" title="Private" />
-            )}
-            {mood && <span className="text-[10px]">{mood.emoji}</span>}
-          </div>
-        </div>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggleStar()
-            }}
-            className="p-1 rounded hover:bg-amber-100"
-            title={entry.is_starred ? 'Unstar' : 'Star'}
-          >
-            <Star
-              className={`w-3.5 h-3.5 ${entry.is_starred ? 'fill-amber-400 text-amber-500' : 'text-gray-400'}`}
-            />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete()
-            }}
-            className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"
-            title="Delete entry"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
+      {/* revealed row actions */}
+      <div className="nj-card-actions">
+        <button
+          type="button"
+          className="nj-cardact"
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleStar()
+          }}
+          title={entry.is_starred ? 'Remove bookmark' : 'Bookmark entry'}
+          aria-label={entry.is_starred ? 'Remove bookmark' : 'Bookmark entry'}
+        >
+          <Star
+            width={13}
+            height={13}
+            style={entry.is_starred ? { fill: '#ff6b6b' } : undefined}
+          />
+        </button>
+        <button
+          type="button"
+          className="nj-cardact"
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete()
+          }}
+          title="Delete entry"
+          aria-label="Delete entry"
+        >
+          <Trash2 width={13} height={13} />
+        </button>
       </div>
-      {entry.is_starred && (
-        <Star className="absolute top-2 right-2 w-3 h-3 fill-amber-400 text-amber-500 group-hover:opacity-0 transition-opacity" />
-      )}
+
+      {entry.is_starred && <span className="nj-card-ribbon" />}
+
+      <div className="nj-card-top">
+        <span className="nj-card-date">{formatEntryDate(entry.journal_date || entry.created_at)}</span>
+        <span className="nj-card-meta">
+          {MoodIcon && <MoodIcon />}
+          {entry.is_visible_to_mentor ? (
+            <LockOpen style={{ color: '#0d8f81' }} title="Shared" />
+          ) : (
+            <Lock style={{ color: '#999999' }} title="Private" />
+          )}
+          {photoCount > 0 && (
+            <span className="nj-card-photo">
+              <Camera width={11} height={11} />
+              {photoCount}
+            </span>
+          )}
+        </span>
+      </div>
+      <p className="nj-card-title">{entry.title || 'Untitled entry'}</p>
     </div>
   )
 }
@@ -219,5 +240,11 @@ function formatEntryDate(value) {
   if (!value) return ''
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function dateKeyOf(d) {
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
 }

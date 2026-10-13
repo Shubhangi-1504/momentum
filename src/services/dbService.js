@@ -277,6 +277,21 @@ export const dbService = {
   // ============================================
   // SHARED JOURNALS (for mentors)
   // ============================================
+
+  // ONE shared entry, for the mentor detail view. The .eq('is_visible_to_mentor',
+  // true) filter plus journal_entries RLS (migration 003: is_visible_to_mentor =
+  // TRUE AND is_assigned_student(student_id)) means an unauthorized or
+  // now-private entry comes back as null data — never another student's entry.
+  async getSharedJournalEntry(entryId) {
+    const { data, error } = await supabase
+      .from('journal_entries')
+      .select('*, students(*, profiles(*))')
+      .eq('id', entryId)
+      .eq('is_visible_to_mentor', true)
+      .maybeSingle()
+    return { data, error }
+  },
+
   async getSharedJournals(studentIds) {
     const { data, error } = await supabase
       .from('journal_entries')
@@ -1008,6 +1023,100 @@ export const dbService = {
     return () => {
       supabase.removeChannel(channel)
     }
+  },
+
+  // ============================================
+  // NOTES — private per-user notes (students AND mentors).
+  // RLS (migration 009) scopes every query to user_id = auth.uid();
+  // a user can never read or write another user's notes.
+  // ============================================
+
+  // All my notes, newest activity first.
+  async getNotes() {
+    const { data, error } = await supabase
+      .from('notes')
+      .select('id, title, content, note_type, language, created_at, updated_at')
+      .order('updated_at', { ascending: false })
+    return { data, error }
+  },
+
+  async createNote(note) {
+    // RLS (migration 009) requires notes.user_id = auth.uid().
+    // Supabase evaluates the WITH CHECK using the request JWT, and RLS
+    // expressions do not reliably see column defaults in the same statement,
+    // so user_id MUST be sent explicitly with the row.
+    const { data: { user } = {}, error: userErr } = await supabase.auth.getUser()
+    if (userErr || !user?.id) {
+      console.error('[dbService/notes] createNote: no authenticated user', userErr)
+      return { data: null, error: userErr || new Error('Not signed in.') }
+    }
+    const { data, error } = await supabase
+      .from('notes')
+      .insert({ ...note, user_id: user.id })
+      .select()
+      .single()
+    return { data, error }
+  },
+
+  async updateNote(id, updates) {
+    const { data, error } = await supabase
+      .from('notes')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single()
+    return { data, error }
+  },
+
+  async deleteNote(id) {
+    const { error } = await supabase
+      .from('notes')
+      .delete()
+      .eq('id', id)
+    return { error }
+  },
+
+  // ============================================
+  // JOURNAL PHOTOS — PRIVATE Supabase Storage (bucket
+  // 'journal-images', migration 009). Signed URLs only, never public.
+  // ============================================
+
+  // Upload one prepared image to the sender's own folder.
+  // Path: '<userId>/<uuid>.<ext>' — the storage policy names the
+  // first folder segment auth.uid()::text, so this pair must match.
+  async uploadJournalImage(userId, file) {
+    const ext = (file.name || '').split('.').pop()?.toLowerCase() || 'jpg'
+    const path = `${userId}/${crypto.randomUUID()}.${ext}`
+    const { error } = await supabase.storage
+      .from('journal-images')
+      .upload(path, file, { upsert: false, contentType: file.type })
+    if (error) return { data: null, error }
+    return { data: { path }, error: null }
+  },
+
+  // Short-lived signed URLs for the given storage paths.
+  // Returns a { [path]: url } map for easy lookup in the UI.
+  async getJournalImageUrls(paths) {
+    if (!paths || paths.length === 0) return { data: [], error: null }
+    const { data, error } = await supabase.storage
+      .from('journal-images')
+      .createSignedUrls(paths, 3600)
+    if (error || !data) return { data: null, error }
+    const map = {}
+    paths.forEach((p, i) => {
+      map[p] = data[i]?.signedUrl || data[i]?.signedURL || null
+    })
+    return { data: map, error: null }
+  },
+
+  // Best-effort delete of orphaned uploads (photo removed from an
+  // entry, or the whole entry deleted). No-op for empty arrays.
+  async deleteJournalImages(paths) {
+    if (!paths || paths.length === 0) return { data: null, error: null }
+    const { data, error } = await supabase.storage
+      .from('journal-images')
+      .remove(paths)
+    return { data, error }
   },
 }
 
